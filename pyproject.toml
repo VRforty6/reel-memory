@@ -1,0 +1,47 @@
+[project]
+name = "reel-memory"
+version = "0.1.0"
+description = "Reel Memory — personal multimodal memory/search system for short-form video (backend scaffold, MVP)"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110",
+  "python-multipart>=0.0.9",  # multipart/form-data parsing for video uploads
+  "uvicorn[standard]>=0.29",
+  "sqlalchemy>=2.0",
+  "psycopg[binary]>=3.1",
+  "pgvector>=0.3",
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+  "argon2-cffi>=23.1",  # password hashing (auth)
+  "PyJWT[crypto]>=2.8",  # HS256 session tokens + RS256 (Google ID tokens, Play service accounts)
+  "httpx>=0.27",  # Google JWKS + Play Developer API calls
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+# Visual search (local joint image/text embeddings, no API cost): the worker
+# and GET /v1/search import torch/open_clip lazily, so the base install keeps
+# working without these. Install with `pip install -e ".[visual]"` on the
+# server that runs the API/worker when VISUAL_EMBEDDING_PROVIDER=openclip.
+visual = [
+  "torch>=2.0",  # CPU wheel is fine; GPU optional
+  "open_clip_torch>=2.20",
+  "pillow>=10.0",
+  "numpy>=1.26",
+  # Only needed for SigLIP-family models (their HF tokenizer):
+  # "transformers>=4.30",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+# Explicit package list: setuptools flat-layout auto-discovery refuses to
+# build when it sees the top-level qa/, android/, migrations/ directories.
+# Only `app` is the shippable Python package (qa/ scripts run from the repo
+# root via sys.path insertion; android/ is the Android app; migrations/ SQL).
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

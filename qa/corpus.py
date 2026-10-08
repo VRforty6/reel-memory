@@ -1,0 +1,345 @@
+"""Retrieval QA corpus — PRD §36 benchmark set (synthetic).
+
+24 synthetic memory records spanning all modalities (speech, visual, OCR,
+caption, summary, tags), plus 22 query -> expected-reel pairs. Queries cover
+exact recall, paraphrase, and cross-modality cases ("remember anything seen,
+heard, or read").
+
+This corpus is synthetic by design: the M2 benchmark showed Instagram serves
+unauthenticated clients only a gated shell page, so real fixtures cannot be
+ingested with content. The corpus stands in for the multimodal evidence the
+pipeline would extract once media bytes are obtainable.
+"""
+
+from __future__ import annotations
+
+# Each reel: stable id, title, category, tags, segments[(modality, content)].
+REELS: list[dict] = [
+    dict(
+        id="reel-01",
+        title="Red Ducati number 46 on the coast",
+        category="entertainment",
+        tags=["motorcycle", "racing", "ducati"],
+        caption="Coastal run on the Panigale 🏍️ #46",
+        segments=[
+            ("visual", "a red motorcycle with racing number 46 speeds down a coastal road"),
+            ("speech", "this Ducati sounds incredible at full throttle"),
+            ("ocr", "46"),
+            ("summary", "A rider takes a red number-46 Ducati motorcycle along a coastal highway."),
+        ],
+    ),
+    dict(
+        id="reel-02",
+        title="Pasta carbonara the Roman way",
+        category="food",
+        tags=["pasta", "recipe", "italian"],
+        caption="No cream. Ever. #carbonara",
+        segments=[
+            ("visual", "a chef tossing spaghetti in a wide pan with guanciale"),
+            ("speech", "crack two eggs and whisk them with grated pecorino before the pasta lands"),
+            ("ocr", "CARBONARA"),
+            ("summary", "A chef demonstrates authentic Roman spaghetti carbonara with pecorino and guanciale."),
+        ],
+    ),
+    dict(
+        id="reel-03",
+        title="Tokyo after dark in the rain",
+        category="travel",
+        tags=["travel", "japan", "city"],
+        caption="Shibuya at midnight 🌃",
+        segments=[
+            ("visual", "neon-lit Shibuya crossing at night in the rain, crowds with umbrellas"),
+            ("speech", "tokyo after dark hits different when it rains"),
+            ("summary", "Rainy night scenes of neon-lit Shibuya crossing in Tokyo."),
+        ],
+    ),
+    dict(
+        id="reel-04",
+        title="12-minute ab burner, no equipment",
+        category="fitness",
+        tags=["fitness", "workout", "abs"],
+        caption="Day 12 — no excuses",
+        segments=[
+            ("visual", "a person doing planks in a small living room"),
+            ("speech", "thirty seconds plank, no rest between rounds, keep your core tight"),
+            ("ocr", "DAY 12"),
+            ("summary", "A no-equipment ab workout built around planks with no rest."),
+        ],
+    ),
+    dict(
+        id="reel-05",
+        title="Phone photography: composition basics",
+        category="tech",
+        tags=["tech", "photography", "phone"],
+        caption="Your camera is better than you think",
+        segments=[
+            ("visual", "close-up of phone camera settings screen with grid overlay"),
+            ("speech", "turn on grid lines for better composition and place subjects on thirds"),
+            ("ocr", "PRO MODE"),
+            ("summary", "Tips for better phone photos using grid lines and rule of thirds."),
+        ],
+    ),
+    dict(
+        id="reel-06",
+        title="Scoring sourdough like a bakery",
+        category="food",
+        tags=["baking", "bread", "sourdough"],
+        caption="The ear matters 👂🍞",
+        segments=[
+            ("visual", "scoring a sourdough loaf with a lame before baking"),
+            ("speech", "one confident curved cut gives you that beautiful ear on the loaf"),
+            ("ocr", "450°F"),
+            ("summary", "How to score sourdough for a bakery-style ear, baked at 450°F."),
+        ],
+    ),
+    dict(
+        id="reel-07",
+        title="Golden retriever puppy meets snow",
+        category="entertainment",
+        tags=["dog", "puppy", "cute"],
+        caption="First snow day ❄️🐾",
+        segments=[
+            ("visual", "a golden retriever puppy bounding through fresh snow"),
+            ("speech", "look at those paws, he has no idea what to do with the snow"),
+            ("summary", "A golden retriever puppy experiences snow for the first time."),
+        ],
+    ),
+    dict(
+        id="reel-08",
+        title="Flight booking hacks that actually work",
+        category="travel",
+        tags=["travel", "budget", "flights"],
+        caption="Stop overpaying for flights ✈️",
+        segments=[
+            ("visual", "screen recording of a flight search with price calendar"),
+            ("speech", "book flights on tuesday for the cheapest fares and clear your cookies first"),
+            ("ocr", "SAVE 40%"),
+            ("summary", "Budget flight tips: book on Tuesdays and compare with a price calendar."),
+        ],
+    ),
+    dict(
+        id="reel-09",
+        title="Travis picking in five minutes",
+        category="entertainment",
+        tags=["music", "guitar", "lesson"],
+        caption="Fingerstyle starter pack 🎸",
+        segments=[
+            ("visual", "close-up of fingers on guitar strings playing a pattern"),
+            ("speech", "start with a simple travis picking pattern, thumb steady on the bass notes"),
+            ("summary", "A beginner lesson on Travis picking for fingerstyle guitar."),
+        ],
+    ),
+    dict(
+        id="reel-10",
+        title="Morning skincare, simplified",
+        category="other",
+        tags=["skincare", "beauty", "routine"],
+        caption="Less is more ✨",
+        segments=[
+            ("visual", "applying serum drops to a face in a bright bathroom"),
+            ("speech", "vitamin c serum before moisturizer, and never skip sunscreen in the morning"),
+            ("ocr", "SPF 50"),
+            ("summary", "A simple morning skincare routine: vitamin C serum, moisturizer, SPF 50."),
+        ],
+    ),
+    dict(
+        id="reel-11",
+        title="Punish greedy openings: Fried Liver",
+        category="education",
+        tags=["chess", "strategy", "openings"],
+        caption="Free knight? Think again ♞",
+        segments=[
+            ("visual", "a chessboard with pieces mid-game, knight attacking f7"),
+            ("speech", "the fried liver attack punishes early mistakes and wins the exchange"),
+            ("ocr", "1. e4 e5"),
+            ("summary", "The Fried Liver Attack in chess: how to punish greedy opening play."),
+        ],
+    ),
+    dict(
+        id="reel-12",
+        title="Rosetta pour, step by step",
+        category="food",
+        tags=["coffee", "barista", "latteart"],
+        caption="Wet paint milk 🥛",
+        segments=[
+            ("visual", "pouring a rosetta latte art pattern into a ceramic cup"),
+            ("speech", "milk texture like wet paint, then wiggle the pitcher through the crema"),
+            ("summary", "Barista tutorial for pouring rosetta latte art."),
+        ],
+    ),
+    dict(
+        id="reel-13",
+        title="Balcony tomatoes for beginners",
+        category="home",
+        tags=["gardening", "plants", "tomatoes"],
+        caption="Pots > plots 🍅",
+        segments=[
+            ("visual", "cherry tomato plants growing in terracotta pots on a sunny balcony"),
+            ("speech", "cherry tomatoes love full sun and a deep pot, water them every morning"),
+            ("summary", "Growing cherry tomatoes in pots on a sunny balcony."),
+        ],
+    ),
+    dict(
+        id="reel-14",
+        title="Stop print-debugging in Python",
+        category="tech",
+        tags=["programming", "python", "debugging"],
+        caption="breakpoint() changed my life",
+        segments=[
+            ("visual", "a code editor paused at a debugger breakpoint with variables panel"),
+            ("speech", "use breakpoint instead of print statements and inspect variables live"),
+            ("ocr", "breakpoint()"),
+            ("summary", "Python debugging tips: use breakpoint() instead of print statements."),
+        ],
+    ),
+    dict(
+        id="reel-15",
+        title="Chasing turquoise swell",
+        category="sports",
+        tags=["surfing", "ocean", "waves"],
+        caption="Paddle like you mean it 🌊",
+        segments=[
+            ("visual", "a surfer riding a large turquoise wave at golden hour"),
+            ("speech", "paddle hard, pop up fast, and keep your eyes down the line"),
+            ("summary", "Surfing a big turquoise wave: paddle technique and pop-up timing."),
+        ],
+    ),
+    dict(
+        id="reel-16",
+        title="Granny square, zero tangles",
+        category="home",
+        tags=["crochet", "crafts", "yarn"],
+        caption="One square a day 🧶",
+        segments=[
+            ("visual", "hands crocheting a colorful granny square with a metal hook"),
+            ("speech", "chain three to start each round and change colors on the last pull-through"),
+            ("summary", "How to crochet a classic granny square with clean color changes."),
+        ],
+    ),
+    dict(
+        id="reel-17",
+        title="This EV embarrassed a sports car",
+        category="tech",
+        tags=["EV", "cars", "review"],
+        caption="420 miles of range ⚡",
+        segments=[
+            ("visual", "a silver electric sedan accelerating on a highway at dusk"),
+            ("speech", "zero to sixty in under four seconds with four hundred twenty miles of range"),
+            ("ocr", "420 MI RANGE"),
+            ("summary", "Review of a long-range electric sedan: 0-60 under 4s, 420-mile range."),
+        ],
+    ),
+    dict(
+        id="reel-18",
+        title="Four-count breathing reset",
+        category="other",
+        tags=["mindfulness", "wellness", "breathing"],
+        caption="60 seconds to calm 🧘",
+        segments=[
+            ("visual", "a person meditating cross-legged at sunrise on a cliff"),
+            ("speech", "breathe in for four counts, hold for four, and let it all go"),
+            ("summary", "A one-minute box-breathing meditation for quick calm."),
+        ],
+    ),
+    dict(
+        id="reel-19",
+        title="Rooftop trick shot madness",
+        category="sports",
+        tags=["basketball", "sports", "trickshot"],
+        caption="Attempt #7 went in 🏀",
+        segments=[
+            ("visual", "a basketball bouncing off a rooftop edge and dropping into a hoop"),
+            ("speech", "third attempt from the roof and it finally dropped, I cannot believe it"),
+            ("ocr", "TRICK SHOT #7"),
+            ("summary", "A basketball trick shot off a rooftop that lands on attempt seven."),
+        ],
+    ),
+    dict(
+        id="reel-20",
+        title="Cable-knit sweater, no fear",
+        category="home",
+        tags=["knitting", "sweater", "winter"],
+        caption="Cables are just twisted stitches 🧵",
+        segments=[
+            ("visual", "knitting a chunky cable-knit sweater with wooden needles"),
+            ("speech", "the cable needle holds the stitches while you cross them over"),
+            ("summary", "Knitting a chunky cable-knit sweater, demystifying cable crossings."),
+        ],
+    ),
+    dict(
+        id="reel-21",
+        title="Above the clouds: drone diaries",
+        category="travel",
+        tags=["drone", "mountains", "aerial"],
+        caption="120 meters up 🏔️",
+        segments=[
+            ("visual", "an aerial drone shot gliding over snowy mountain peaks above clouds"),
+            ("speech", "flying at one hundred twenty meters, the ridge just keeps going"),
+            ("summary", "Drone footage soaring over snowy peaks above the clouds."),
+        ],
+    ),
+    dict(
+        id="reel-22",
+        title="Old fashioned, done right",
+        category="food",
+        tags=["cocktails", "whiskey", "recipe"],
+        caption="Two dashes, no more 🥃",
+        segments=[
+            ("visual", "stirring an old fashioned with a large clear ice cube"),
+            ("speech", "two dashes of bitters, a bar spoon of sugar, and stir it down cold"),
+            ("ocr", "OLD FASHIONED"),
+            ("summary", "Classic old fashioned cocktail: bitters, sugar, whiskey, big ice."),
+        ],
+    ),
+    dict(
+        id="reel-23",
+        title="Spanish in 60 seconds: la biblioteca",
+        category="education",
+        tags=["spanish", "language", "learning"],
+        caption="Repitan conmigo 🗣️",
+        segments=[
+            ("visual", "flashcards with spanish words flipping on a desk"),
+            ("speech", "repitan conmigo: la biblioteca, which means the library in spanish"),
+            ("ocr", "la biblioteca = the library"),
+            ("summary", "A 60-second Spanish lesson on the word la biblioteca."),
+        ],
+    ),
+    dict(
+        id="reel-24",
+        title="Dovetails by hand",
+        category="home",
+        tags=["woodworking", "DIY", "joinery"],
+        caption="Mark the tails first 🪵",
+        segments=[
+            ("visual", "cutting dovetail joints in hardwood with a chisel and mallet"),
+            ("speech", "mark the tails first, then transfer to the pin board for a tight fit"),
+            ("summary", "Hand-cut dovetail joinery: marking tails and transferring to pins."),
+        ],
+    ),
+]
+
+# (query, expected_reel_id, note) — difficulty ranges from exact to paraphrase.
+QUERIES: list[tuple[str, str, str]] = [
+    ("red motorcycle number 46", "reel-01", "visual + OCR exact"),
+    ("how to make carbonara", "reel-02", "speech paraphrase"),
+    ("neon tokyo rain night", "reel-03", "visual paraphrase"),
+    ("plank workout no rest", "reel-04", "speech"),
+    ("phone camera grid composition", "reel-05", "speech paraphrase"),
+    ("scoring sourdough before baking", "reel-06", "visual"),
+    ("golden retriever puppy snow", "reel-07", "visual"),
+    ("cheapest day to book flights", "reel-08", "speech paraphrase"),
+    ("travis picking guitar lesson", "reel-09", "speech"),
+    ("vitamin c serum routine", "reel-10", "speech"),
+    ("fried liver chess trap", "reel-11", "speech"),
+    ("rosetta latte art pour", "reel-12", "visual"),
+    ("cherry tomatoes balcony pots", "reel-13", "speech + visual"),
+    ("python breakpoint debugging", "reel-14", "speech + OCR"),
+    ("surfer big turquoise wave", "reel-15", "visual"),
+    ("granny square crochet chain three", "reel-16", "speech + visual"),
+    ("electric car 420 mile range", "reel-17", "OCR + speech"),
+    ("breathing meditation four counts", "reel-18", "speech"),
+    ("basketball rooftop trick shot", "reel-19", "visual"),
+    ("dovetail joints chisel", "reel-24", "visual + speech"),
+    ("450°F", "reel-06", "OCR exact token"),
+    ("la biblioteca", "reel-23", "OCR exact token"),
+]

@@ -1,0 +1,1098 @@
+[
+ {
+  "shortcode": "DdfevZCMhco",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 2.77,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DdfevZCMhco",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.71,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DdfevZCMhco",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.67,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 631281
+ },
+ {
+  "shortcode": "DdUTRqBg1LG",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.99,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DdUTRqBg1LG",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.95,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DdUTRqBg1LG",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.95,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630822
+ },
+ {
+  "shortcode": "DdCO_ZNzmuA",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 2.38,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DdCO_ZNzmuA",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.93,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DdCO_ZNzmuA",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 2.03,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630791
+ },
+ {
+  "shortcode": "Dct7DUBzaoi",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.78,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "Dct7DUBzaoi",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.81,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "Dct7DUBzaoi",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.78,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 634070
+ },
+ {
+  "shortcode": "DcOGDRgkhj6",
+  "kind": "p",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.52,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DcOGDRgkhj6",
+  "kind": "p",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.99,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DcOGDRgkhj6",
+  "kind": "p",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.85,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 633350
+ },
+ {
+  "shortcode": "Db8hZMdIu_N",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.54,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "Db8hZMdIu_N",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.98,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "Db8hZMdIu_N",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.44,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630726
+ },
+ {
+  "shortcode": "DX2Q4XBPlCW",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.52,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DX2Q4XBPlCW",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.52,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DX2Q4XBPlCW",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.39,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630767
+ },
+ {
+  "shortcode": "DY7RPo5JnKc",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.88,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DY7RPo5JnKc",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.33,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DY7RPo5JnKc",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.69,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630555
+ },
+ {
+  "shortcode": "DajCWEUjktT",
+  "kind": "p",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.59,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DajCWEUjktT",
+  "kind": "p",
+  "approach": "embed",
+  "status": "EXC",
+  "latency_s": 62.44,
+  "note": "TimeoutError: The read operation timed out",
+  "parsed": false
+ },
+ {
+  "shortcode": "DajCWEUjktT",
+  "kind": "p",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.33,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630746
+ },
+ {
+  "shortcode": "DaNK3kNk5RT",
+  "kind": "p",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.23,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DaNK3kNk5RT",
+  "kind": "p",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.48,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DaNK3kNk5RT",
+  "kind": "p",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.15,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630778
+ },
+ {
+  "shortcode": "DZxdUJMEikZ",
+  "kind": "p",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.54,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DZxdUJMEikZ",
+  "kind": "p",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.1,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DZxdUJMEikZ",
+  "kind": "p",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.3,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630923
+ },
+ {
+  "shortcode": "DY7ZSYQAGUM",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.23,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DY7ZSYQAGUM",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.13,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DY7ZSYQAGUM",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.14,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630669
+ },
+ {
+  "shortcode": "DYWh6WmkcRU",
+  "kind": "p",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.25,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DYWh6WmkcRU",
+  "kind": "p",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.1,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DYWh6WmkcRU",
+  "kind": "p",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.07,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 633235
+ },
+ {
+  "shortcode": "DVihrocAY1f",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 2.09,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DVihrocAY1f",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 2.15,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DVihrocAY1f",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.75,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630984
+ },
+ {
+  "shortcode": "DWYnOwcCKHe",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.35,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DWYnOwcCKHe",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.74,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DWYnOwcCKHe",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.99,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630762
+ },
+ {
+  "shortcode": "DXKDEZxTPDz",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.96,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DXKDEZxTPDz",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.57,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DXKDEZxTPDz",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.94,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 631960
+ },
+ {
+  "shortcode": "DQLjZ2zkffU",
+  "kind": "p",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.5,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DQLjZ2zkffU",
+  "kind": "p",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.97,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DQLjZ2zkffU",
+  "kind": "p",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.73,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630656
+ },
+ {
+  "shortcode": "DMkuaIaS8dL",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 2.81,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DMkuaIaS8dL",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 2.03,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DMkuaIaS8dL",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.48,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630756
+ },
+ {
+  "shortcode": "DNw0jEg5t_V",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.8,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DNw0jEg5t_V",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.74,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DNw0jEg5t_V",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 2.2,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630521
+ },
+ {
+  "shortcode": "DNW60K6x8cY",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.2,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DNW60K6x8cY",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.09,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DNW60K6x8cY",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.09,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630594
+ },
+ {
+  "shortcode": "DM2XEWRJqgR",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 0.83,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DM2XEWRJqgR",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.07,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DM2XEWRJqgR",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 0.98,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630753
+ },
+ {
+  "shortcode": "DMPcYRCvKwa",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 1.11,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DMPcYRCvKwa",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 1.11,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DMPcYRCvKwa",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.09,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630731
+ },
+ {
+  "shortcode": "DJTsc3UStRc",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 0.82,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DJTsc3UStRc",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 0.96,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DJTsc3UStRc",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 0.92,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630775
+ },
+ {
+  "shortcode": "DSxHRznkuhl",
+  "kind": "reel",
+  "approach": "oembed",
+  "status": 200,
+  "latency_s": 0.92,
+  "note": "ok",
+  "parsed": false,
+  "parse_error": "Expecting value: line 1 column 1 (char 0)"
+ },
+ {
+  "shortcode": "DSxHRznkuhl",
+  "kind": "reel",
+  "approach": "embed",
+  "status": 200,
+  "latency_s": 0.81,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false
+ },
+ {
+  "shortcode": "DSxHRznkuhl",
+  "kind": "reel",
+  "approach": "direct_og",
+  "status": 200,
+  "latency_s": 1.3,
+  "note": "ok",
+  "parsed": true,
+  "fields": {
+   "creator": false,
+   "caption": false,
+   "thumbnail": false,
+   "publish_date": false,
+   "media_url": false
+  },
+  "media_url_obtainable": false,
+  "looks_like_login_page": false,
+  "html_bytes": 630754
+ }
+]

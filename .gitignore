@@ -1,0 +1,47 @@
+# Secrets / local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.pytest-tmp/
+.pytest-work/
+.coverage
+htmlcov/
+
+# Local runtime / scratch artifacts
+.tmp/
+.runtime/
+py-dir/
+python-write-test.txt
+*.log
+
+# Model / tool caches
+.model-cache/
+.cache/
+
+# Android / Gradle generated files
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+.gradle/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary media / downloads
+*.tmp
+*.temp
+android/.android-user/
+android/.gradle-user/
+android/.kotlin/

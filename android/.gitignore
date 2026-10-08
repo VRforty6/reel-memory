@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+local.properties
+.DS_Store
+
+# Signing
+*.jks
+*.keystore
+
+# Kotlin
+*.class
+
+# OS
+Thumbs.db

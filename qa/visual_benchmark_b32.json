@@ -1,0 +1,58 @@
+{
+  "videos": 12,
+  "queries": 6,
+  "models": {
+    "ViT-B-32": {
+      "dim": 512,
+      "recall@1": 0.5,
+      "recall@3": 0.6666666666666666,
+      "per_query": [
+        {
+          "query": "guy writing with 2 pens on a red sticky note",
+          "target": "sticky",
+          "rank": 3,
+          "top1": "park"
+        },
+        {
+          "query": "red motorcycle with number 46",
+          "target": "moto",
+          "rank": 1,
+          "top1": "moto"
+        },
+        {
+          "query": "jacket that inflates like an airbag",
+          "target": "airbag",
+          "rank": 5,
+          "top1": "diagram"
+        },
+        {
+          "query": "giant dosa on a table",
+          "target": "dosa",
+          "rank": 4,
+          "top1": "park"
+        },
+        {
+          "query": "coding diagram with boxes and arrows",
+          "target": "diagram",
+          "rank": 1,
+          "top1": "diagram"
+        },
+        {
+          "query": "girl using two monitors with purple lights",
+          "target": "monitors",
+          "rank": 1,
+          "top1": "monitors"
+        }
+      ],
+      "index_latency_s_per_reel_mean": 2.3852889800835633,
+      "index_latency_s_per_reel_max": 2.7987445170001592,
+      "query_latency_s_mean": 0.1963082151666337,
+      "frames_per_reel_mean": 12.5,
+      "storage_bytes_per_reel": 25600.0,
+      "ram_mb_model_load_delta": 1295.578125,
+      "ram_mb_peak": 1546.12109375,
+      "model_load_s": 4.91838677800024
+    }
+  },
+  "acceptance_text_isolated": true
+}
