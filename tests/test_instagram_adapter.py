@@ -15,7 +15,13 @@ from app.config import settings
 from app.pipeline.state_machine import ProcessingStatus
 from app.pipeline.worker import Worker
 from app.sources import instagram as ig
-from app.sources.base import MetadataOnly, RetryableFailure, Unavailable, Unsupported
+from app.sources.base import MetadataOnly, ResolvedMedia, RetryableFailure, Unavailable, Unsupported
+
+@pytest.fixture(autouse=True)
+def _default_to_direct_instagram_mode(monkeypatch):
+    # Unit tests must not depend on the developer's local .env.
+    monkeypatch.setattr(settings, "instagram_acquisition_provider", "direct")
+
 
 OG_HTML = b"""<!DOCTYPE html><html><head>
 <meta property="og:title" content="somehandle on Instagram: &quot;great reel&quot;" />
@@ -167,6 +173,51 @@ def test_creator_truncated_to_column_width():
     md = ig._metadata_from_og(og)
     assert md is not None
     assert len(md.creator_handle) == 128
+
+
+def test_apify_mode_returns_processable_media(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "instagram_acquisition_provider", "apify")
+    item = {
+        "shortCode": "DdfevZCMhco",
+        "type": "Video",
+        "ownerUsername": "creator",
+        "caption": "caption from Apify",
+        "displayUrl": "https://example.invalid/thumb.jpg",
+        "timestamp": "2026-10-08T12:00:00.000Z",
+        "videoDuration": 52.6,
+        "videoUrl": "https://scontent-test.cdninstagram.com/video.mp4",
+    }
+    monkeypatch.setattr(ig, "_apify_actor_item", lambda canonical: item)
+
+    media_path = tmp_path / "instagram-DdfevZCMhco.mp4"
+    media_path.write_bytes(b"fake-mp4")
+    monkeypatch.setattr(
+        ig,
+        "_download_apify_video",
+        lambda video_url, work_dir, shortcode: str(media_path),
+    )
+
+    result = adapter().resolve(canon(), work_dir=str(tmp_path))
+    assert isinstance(result, ResolvedMedia)
+    assert result.media_path == str(media_path)
+    assert result.duration_s == 52.6
+    assert result.metadata.creator_handle == "creator"
+    assert result.metadata.caption == "caption from Apify"
+    assert result.metadata.published_at is not None
+
+
+def test_apify_mode_requires_worker_temp_dir(monkeypatch):
+    monkeypatch.setattr(settings, "instagram_acquisition_provider", "apify")
+    result = adapter().resolve(canon())
+    assert isinstance(result, Unsupported)
+    assert "temporary directory" in result.detail
+
+
+def test_apify_media_url_allowlist():
+    assert ig._is_allowed_media_url("https://scontent-abc.cdninstagram.com/video.mp4")
+    assert ig._is_allowed_media_url("https://video.xx.fbcdn.net/file.mp4")
+    assert not ig._is_allowed_media_url("http://scontent-abc.cdninstagram.com/video.mp4")
+    assert not ig._is_allowed_media_url("https://cdninstagram.com.evil.example/video.mp4")
 
 
 # --- worker-level regression: gated shell -> METADATA_ONLY, single attempt ---

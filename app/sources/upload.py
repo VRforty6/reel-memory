@@ -47,7 +47,9 @@ _ALBUM_FILE_RE = re.compile(r"^([0-9a-f]{64})\.(\d{2})\.([0-9a-f]{64})(\.[a-z0-9
 class UploadAdapter(SourceAdapter):
     platform = "upload"
 
-    def resolve(self, canonical: CanonicalURL) -> ResolutionResult:
+    def resolve(
+        self, canonical: CanonicalURL, *, work_dir: str | None = None
+    ) -> ResolutionResult:
         upload_dir = Path(settings.resolve_upload_dir())
         # platform_item_id is a hex sha256 digest — safe for globbing.
         matches = sorted(upload_dir.glob(f"{canonical.platform_item_id}.*"))

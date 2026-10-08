@@ -497,7 +497,9 @@ class WebpageAdapter(SourceAdapter):
 
     platform = "web"
 
-    def resolve(self, canonical: CanonicalURL) -> ResolutionResult:
+    def resolve(
+        self, canonical: CanonicalURL, *, work_dir: str | None = None
+    ) -> ResolutionResult:
         try:
             fetched = fetch_page(canonical.canonical_url)
         except FetchError as e:

@@ -625,7 +625,12 @@ class Worker:
         )
 
         self._transition(db, memory, job, ProcessingStatus.RESOLVING_SOURCE)
-        result = self._call(FailureCode.SOURCE_RESOLUTION_FAILED, adapter.resolve, canon)
+        result = self._call(
+            FailureCode.SOURCE_RESOLUTION_FAILED,
+            adapter.resolve,
+            canon,
+            work_dir=str(tmp),
+        )
         if isinstance(result, RetryableFailure):
             try:
                 code = FailureCode(result.code)

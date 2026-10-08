@@ -1,55 +1,44 @@
-"""Instagram source adapter — PRD §14, §8.8, §15, SEC-004.
+"""Instagram source adapter.
 
-M2 benchmark result (see MILESTONE2-BENCHMARK.md): with unauthenticated HTTP
-only, Instagram serves a generic gated shell page on every public endpoint we
-tried (oEmbed, /embed/, direct page) — 0% metadata yield and 0% media-byte
-yield across 24 real public reels. There is therefore NO policy-compliant
-acquisition path that produces video bytes:
+Two acquisition modes are supported behind the same SourceAdapter boundary:
 
-  * video bytes would require an Instagram login/cookies, which this backend
-    will never use (§8.8, SEC-004);
-  * even a direct video URL (e.g. og:video) would point at *.fbcdn.net, which
-    is outside the SEC-001 host allowlist and is un-fetchable by design.
+* ``direct`` (default) preserves the Milestone-2 behavior: one anonymous GET
+  of the public Instagram page and Open Graph metadata only. It never logs in,
+  uses cookies, or attempts to bypass private-content controls.
+* ``apify`` sends the public Reel URL to Apify's maintained Instagram Reel
+  Scraper, reads the returned ``videoUrl``, and downloads those public media
+  bytes into the worker's per-job temporary directory. The Apify token is sent
+  only in an Authorization header and is never exposed to the Android client.
 
-So this adapter implements the best policy-compliant fallback measured in M2:
-a single unauthenticated GET of the canonical post URL, parsing Open Graph
-metadata tags. When OG metadata is present, the adapter returns MetadataOnly
-and the worker persists it and lands the memory in METADATA_ONLY. When the
-response is the known gated shell page (HTTP 200, no usable OG metadata —
-the M2-measured outcome for unauthenticated clients), the adapter also
-returns MetadataOnly, with an all-null SourceMetadata: the fetch succeeded
-and the outcome is understood, so retrying would not change anything. The
-memory lands in METADATA_ONLY on this single attempt — no retry loop — with
-the shared URL preserved and nothing fabricated. Genuine transient failures
-(timeouts, 5xx, network errors) and HTTP 429 rate limiting remain classified
-retryable failures.
+The Apify path is deliberately narrow: no transcript add-on, no downloaded
+video add-on, no shares add-on. Reel Memory still performs its own ffmpeg,
+transcription, vision, OCR, embeddings, and memory-generation stages.
 
-What this adapter will NEVER do (hard product constraints):
-  * collect Instagram passwords or credentials (SEC-004),
-  * extract browser cookies or maintain hidden Instagram sessions (§8.8),
-  * perform authenticated scraping or circumvent private-content restrictions
-    (§15),
-  * fetch any host outside ALLOWED_HOSTS (SEC-001; re-checked here before the
-    single fetch).
-
-Downloaded page content is hostile/untrusted data (SEC-008): it is parsed with
-byte-capped regexes over the <head> region only, never executed or
-interpolated into anything trusted.
+All returned media URLs are treated as untrusted. Only HTTPS URLs on known
+Instagram CDN suffixes are accepted, downloads are byte-capped, and the file
+is written under the worker-owned temporary directory so the worker's existing
+finally-block removes raw media on success or failure.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from app.capture.canonicalize import ALLOWED_HOSTS, CanonicalURL
+from app.config import settings
 from app.pipeline.failures import FailureCode
 from app.sources.base import (
+    AuthenticationRequired,
     MetadataOnly,
     ResolutionResult,
+    ResolvedMedia,
     RetryableFailure,
     SourceAdapter,
     SourceMetadata,
@@ -57,18 +46,14 @@ from app.sources.base import (
     Unsupported,
 )
 
-# Policy-compliant fetch parameters: neutral desktop UA, no cookies (urllib
-# ships no CookieJar unless one is installed), tight timeout, head-only byte
-# cap so a slow-drip response cannot hang the worker (M2 saw one 62s read).
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/126.0.0.0 Safari/537.36"
 )
 _FETCH_TIMEOUT_S = 10
-_HEAD_BYTES = 262_144  # OG tags always live in <head>; this caps a slow read.
+_HEAD_BYTES = 262_144
 
-# og: meta tags, attribute order either way.
 _OG_RE = re.compile(
     r'<meta\s+[^>]*property=["\'](og:[a-zA-Z_:]+)["\'][^>]*content=["\']([^"\']*)["\']',
     re.IGNORECASE,
@@ -78,35 +63,39 @@ _OG_RE_ALT = re.compile(
     re.IGNORECASE,
 )
 
-# Defensive truncation so extracted strings fit the DB columns
-# (source_items.creator_handle is VARCHAR(128); caption is TEXT).
 _CREATOR_MAX = 128
 _CAPTION_MAX = 10_000
+_APIFY_API_BASE = "https://api.apify.com/v2"
+_APIFY_MEDIA_HOST_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
+_DOWNLOAD_CHUNK = 1024 * 1024
 
 
 class _RateLimited(Exception):
-    """HTTP 429 — Instagram is throttling us."""
+    """HTTP 429 — upstream is throttling us."""
 
 
 class _NotFound(Exception):
-    """HTTP 404 — the post is gone (or the shortcode never existed)."""
+    """HTTP 404 — the source is gone."""
 
 
 class _TransientFetchError(Exception):
-    """Timeouts, connection errors, 5xx, gated responses — retryable."""
+    """Timeouts, connection errors, and transient HTTP failures."""
 
     def __init__(self, detail: str) -> None:
         super().__init__(detail)
         self.detail = detail
 
 
-def _http_get(url: str) -> tuple[int, bytes]:
-    """Single unauthenticated GET. Returns (status, head_bytes).
+class _ApifyConfigError(Exception):
+    """Apify mode is selected but its server-side configuration is invalid."""
 
-    Raises _RateLimited / _NotFound / _TransientFetchError. Kept as a
-    module-level function so tests can monkeypatch it (no live network in
-    unit tests).
-    """
+
+class _ApifyUnavailable(Exception):
+    """Apify positively reports that the Reel is unavailable."""
+
+
+def _http_get(url: str) -> tuple[int, bytes]:
+    """Single unauthenticated Instagram GET used by ``direct`` mode."""
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
         resp = urllib.request.urlopen(req, timeout=_FETCH_TIMEOUT_S)
@@ -119,18 +108,17 @@ def _http_get(url: str) -> tuple[int, bytes]:
         raise _TransientFetchError(
             f"HTTP {e.code} fetching {url}: no usable response"
         ) from e
-    except urllib.error.URLError as e:  # DNS, refused, reset, ...
+    except urllib.error.URLError as e:
         raise _TransientFetchError(
             f"network error fetching {url}: {e.reason}"
         ) from e
-    except Exception as e:  # timeouts (TimeoutError) and anything else
+    except Exception as e:
         raise _TransientFetchError(
             f"{type(e).__name__} fetching {url}: {e}"
         ) from e
 
 
 def _extract_open_graph(head: bytes) -> dict[str, str]:
-    """Parse og:* meta tags from a page head. Untrusted input -> plain dict."""
     html = head.decode("utf-8", "replace")
     og: dict[str, str] = {}
     for prop, content in _OG_RE.findall(html):
@@ -141,36 +129,290 @@ def _extract_open_graph(head: bytes) -> dict[str, str]:
 
 
 def _metadata_from_og(og: dict[str, str]) -> Optional[SourceMetadata]:
-    """Build SourceMetadata from OG tags, or None if no usable metadata."""
     creator = og.get("og:title") or None
     caption = og.get("og:description") or None
     thumbnail = og.get("og:image") or og.get("og:image:secure_url") or None
     if not any([creator, caption, thumbnail]):
         return None
-    # og:title for reels is usually "<handle> on Instagram: ..."; keep it
-    # verbatim rather than guessing at a handle parse.
     return SourceMetadata(
         creator_handle=creator[:_CREATOR_MAX] if creator else None,
         caption=caption[:_CAPTION_MAX] if caption else None,
-        published_at=None,  # OG tags carry no publish date; not fabricated.
+        published_at=None,
         thumbnail_url=thumbnail,
     )
+
+
+def _parse_apify_timestamp(raw: object) -> datetime | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        return datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _metadata_from_apify(item: dict) -> SourceMetadata:
+    creator = item.get("ownerUsername")
+    caption = item.get("caption")
+    thumbnail = item.get("displayUrl")
+    return SourceMetadata(
+        creator_handle=(str(creator)[:_CREATOR_MAX] if creator else None),
+        caption=(str(caption)[:_CAPTION_MAX] if caption else None),
+        published_at=_parse_apify_timestamp(item.get("timestamp")),
+        thumbnail_url=(str(thumbnail) if thumbnail else None),
+    )
+
+
+def _apify_actor_item(canonical: CanonicalURL) -> dict:
+    """Run the official Apify Reel actor synchronously for one public URL."""
+    token = (settings.apify_api_token or "").strip()
+    if not token:
+        raise _ApifyConfigError(
+            "INSTAGRAM_ACQUISITION_PROVIDER=apify but APIFY_API_TOKEN is missing"
+        )
+    actor_id = urllib.parse.quote(settings.apify_actor_id, safe="~")
+    timeout_s = max(1.0, float(settings.apify_timeout_s))
+    endpoint = (
+        f"{_APIFY_API_BASE}/actors/{actor_id}/run-sync-get-dataset-items"
+        f"?timeout={int(timeout_s)}"
+    )
+    body = json.dumps(
+        {
+            "username": [canonical.canonical_url],
+            "resultsLimit": 1,
+            "includeTranscript": False,
+            "includeDownloadedVideo": False,
+            "includeSharesCount": False,
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        endpoint,
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s + 30.0) as resp:
+            payload = json.load(resp)
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            raise _RateLimited("Apify returned HTTP 429") from e
+        if e.code in (401, 403):
+            raise _ApifyConfigError(
+                f"Apify rejected APIFY_API_TOKEN (HTTP {e.code})"
+            ) from e
+        if e.code == 404:
+            raise _ApifyConfigError(
+                f"Apify actor {settings.apify_actor_id!r} was not found"
+            ) from e
+        raise _TransientFetchError(
+            f"Apify actor HTTP {e.code} while resolving the Reel"
+        ) from e
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise _TransientFetchError(
+            f"Apify actor request failed: {type(e).__name__}: {e}"
+        ) from e
+    except (json.JSONDecodeError, ValueError, TypeError) as e:
+        raise _TransientFetchError(f"invalid Apify actor response: {e}") from e
+
+    if not isinstance(payload, list):
+        raise _TransientFetchError("Apify actor response was not a dataset item list")
+    if not payload:
+        raise _ApifyUnavailable("Apify returned no item for this Reel")
+    item = payload[0]
+    if not isinstance(item, dict):
+        raise _TransientFetchError("Apify returned a non-object dataset item")
+    return item
+
+
+def _is_allowed_media_url(url: str) -> bool:
+    parsed = urllib.parse.urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not host:
+        return False
+    return any(
+        host == suffix or host.endswith("." + suffix)
+        for suffix in _APIFY_MEDIA_HOST_SUFFIXES
+    )
+
+
+def _download_apify_video(video_url: str, work_dir: str, shortcode: str) -> str:
+    """Download an Apify-returned Instagram CDN URL into worker temp storage."""
+    if not _is_allowed_media_url(video_url):
+        host = urllib.parse.urlparse(video_url).hostname
+        raise _ApifyConfigError(
+            f"refusing unexpected media URL returned by Apify (host={host!r})"
+        )
+
+    dest_dir = Path(work_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    final = dest_dir / f"instagram-{shortcode}.mp4"
+    part = dest_dir / f"instagram-{shortcode}.part"
+    max_bytes = max(1, int(settings.apify_max_media_mb)) * 1024 * 1024
+    req = urllib.request.Request(
+        video_url,
+        headers={
+            "User-Agent": _USER_AGENT,
+            "Referer": "https://www.instagram.com/",
+            "Accept": "video/*,*/*;q=0.8",
+        },
+    )
+    written = 0
+    try:
+        with urllib.request.urlopen(req, timeout=float(settings.apify_timeout_s)) as resp:
+            length = resp.headers.get("Content-Length")
+            if length:
+                try:
+                    if int(length) > max_bytes:
+                        raise _ApifyConfigError(
+                            f"Reel media exceeds APIFY_MAX_MEDIA_MB={settings.apify_max_media_mb}"
+                        )
+                except ValueError:
+                    pass
+            with part.open("wb") as f:
+                while True:
+                    chunk = resp.read(_DOWNLOAD_CHUNK)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > max_bytes:
+                        raise _ApifyConfigError(
+                            f"Reel media exceeds APIFY_MAX_MEDIA_MB={settings.apify_max_media_mb}"
+                        )
+                    f.write(chunk)
+        if written <= 0:
+            raise _TransientFetchError("Instagram CDN returned an empty video")
+        part.replace(final)
+        return str(final)
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            raise _RateLimited("Instagram CDN returned HTTP 429") from e
+        raise _TransientFetchError(
+            f"Instagram CDN HTTP {e.code} while downloading Apify media"
+        ) from e
+    except urllib.error.URLError as e:
+        raise _TransientFetchError(
+            f"Instagram CDN download failed: {e.reason}"
+        ) from e
+    finally:
+        if part.exists():
+            try:
+                part.unlink()
+            except OSError:
+                pass
 
 
 class InstagramAdapter(SourceAdapter):
     platform = "instagram"
 
-    def resolve(self, canonical: CanonicalURL) -> ResolutionResult:
+    def resolve(
+        self, canonical: CanonicalURL, *, work_dir: str | None = None
+    ) -> ResolutionResult:
         if canonical.platform != self.platform:
             return Unsupported(detail=f"not an instagram URL: {canonical.original_url!r}")
 
-        # SEC-001: re-validate the allowlist inside the adapter, immediately
-        # before any network fetch, even though canonicalize_url() already
-        # checked it at the API boundary.
         host = (urllib.parse.urlparse(canonical.canonical_url).hostname or "").lower()
         if host not in ALLOWED_HOSTS:
             return Unsupported(detail=f"host not allowlisted: {host!r}")
 
+        mode = (settings.instagram_acquisition_provider or "direct").strip().lower()
+        if mode == "apify":
+            return self._resolve_apify(canonical, work_dir=work_dir)
+        if mode != "direct":
+            return Unsupported(
+                detail=(
+                    f"unknown INSTAGRAM_ACQUISITION_PROVIDER={mode!r}; "
+                    "expected 'direct' or 'apify'"
+                )
+            )
+        return self._resolve_direct(canonical)
+
+    def _resolve_apify(
+        self, canonical: CanonicalURL, *, work_dir: str | None
+    ) -> ResolutionResult:
+        if work_dir is None:
+            return Unsupported(
+                detail="Apify media acquisition requires a worker temporary directory"
+            )
+        try:
+            item = _apify_actor_item(canonical)
+        except _RateLimited as e:
+            return RetryableFailure(
+                canonical=canonical,
+                code=FailureCode.SOURCE_RATE_LIMITED.value,
+                retryable=FailureCode.SOURCE_RATE_LIMITED.retryable,
+                detail=str(e),
+            )
+        except _ApifyUnavailable as e:
+            return Unavailable(canonical=canonical, reason=str(e))
+        except _ApifyConfigError as e:
+            return Unsupported(detail=str(e))
+        except _TransientFetchError as e:
+            return RetryableFailure(
+                canonical=canonical,
+                code=FailureCode.SOURCE_RESOLUTION_FAILED.value,
+                retryable=FailureCode.SOURCE_RESOLUTION_FAILED.retryable,
+                detail=e.detail,
+            )
+
+        error = str(item.get("error") or "").strip()
+        description = str(item.get("errorDescription") or error or "").strip()
+        if error:
+            lowered = f"{error} {description}".lower()
+            if "not_found" in lowered or "not found" in lowered or "deleted" in lowered:
+                return Unavailable(canonical=canonical, reason=description or error)
+            if "private" in lowered or "login" in lowered or "access" in lowered:
+                return AuthenticationRequired(canonical=canonical, detail=description or error)
+            return RetryableFailure(
+                canonical=canonical,
+                code=FailureCode.SOURCE_RESOLUTION_FAILED.value,
+                retryable=True,
+                detail=f"Apify could not fully scrape the Reel: {description or error}",
+            )
+
+        metadata = _metadata_from_apify(item)
+        video_url = item.get("videoUrl")
+        if not video_url:
+            return MetadataOnly(canonical=canonical, metadata=metadata)
+
+        try:
+            media_path = _download_apify_video(
+                str(video_url), work_dir, canonical.platform_item_id
+            )
+        except _RateLimited as e:
+            return RetryableFailure(
+                canonical=canonical,
+                code=FailureCode.SOURCE_RATE_LIMITED.value,
+                retryable=True,
+                detail=str(e),
+            )
+        except _ApifyConfigError as e:
+            return Unsupported(detail=str(e))
+        except _TransientFetchError as e:
+            return RetryableFailure(
+                canonical=canonical,
+                code=FailureCode.MEDIA_DOWNLOAD_FAILED.value,
+                retryable=FailureCode.MEDIA_DOWNLOAD_FAILED.retryable,
+                detail=e.detail,
+            )
+
+        duration = item.get("videoDuration")
+        try:
+            duration_s = float(duration) if duration is not None else None
+        except (TypeError, ValueError):
+            duration_s = None
+        return ResolvedMedia(
+            canonical=canonical,
+            metadata=metadata,
+            media_path=media_path,
+            duration_s=duration_s,
+        )
+
+    def _resolve_direct(self, canonical: CanonicalURL) -> ResolutionResult:
         try:
             _status, head = _http_get(canonical.canonical_url)
         except _RateLimited as e:
@@ -195,15 +437,5 @@ class InstagramAdapter(SourceAdapter):
 
         metadata = _metadata_from_og(_extract_open_graph(head))
         if metadata is None:
-            # M2 measured outcome for unauthenticated clients: Instagram
-            # returns HTTP 200 with a generic gated shell page carrying no
-            # OG metadata. This is a *successful* fetch of a known,
-            # unauthenticated outcome — not a transient failure — so it is
-            # terminal: MetadataOnly with an all-null SourceMetadata (there
-            # is nothing genuine to report; the canonical URL itself is
-            # carried on the result). The worker lands the memory in
-            # METADATA_ONLY on this single attempt with no retry loop. No
-            # metadata is fabricated. Genuine transient errors (timeouts,
-            # 5xx, network failures) and HTTP 429 stay retryable above.
             return MetadataOnly(canonical=canonical, metadata=SourceMetadata())
         return MetadataOnly(canonical=canonical, metadata=metadata)

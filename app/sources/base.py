@@ -114,6 +114,8 @@ class SourceAdapter(ABC):
     platform: str
 
     @abstractmethod
-    def resolve(self, canonical: CanonicalURL) -> ResolutionResult:
-        """Resolve a canonical URL to media, metadata, or a classified failure."""
+    def resolve(
+        self, canonical: CanonicalURL, *, work_dir: str | None = None
+    ) -> ResolutionResult:
+        """Resolve a source. ``work_dir`` is worker-owned temporary storage."""
         raise NotImplementedError

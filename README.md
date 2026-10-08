@@ -105,8 +105,9 @@ curl "${AUTH[@]}" localhost:8000/v1/memories/<memory_id>
 curl -X DELETE "${AUTH[@]}" localhost:8000/v1/memories/<memory_id>
 curl -X POST "${AUTH[@]}" localhost:8000/v1/memories/<memory_id>/reprocess
 
-# Upload a video file directly (the "see the reel" path — Instagram URLs
-# carry no video bytes; 202, or 200 + duplicate:true for an identical re-upload)
+# Upload a video file directly (fallback/manual path; 202, or 200 +
+# duplicate:true for an identical re-upload). With INSTAGRAM_ACQUISITION_PROVIDER=apify,
+# public Reel URL shares can resolve video bytes server-side instead.
 curl -X POST localhost:8000/v1/captures/upload "${AUTH[@]}" -F file=@reel.mp4
 
 # Upload a screenshot / post image (vision + OCR run on it; no audio stage)
@@ -348,7 +349,7 @@ it `false` and create real accounts via `POST /v1/auth/signup`.
 |---|---|
 | M0 Preserve prototype | This repo *is* the starting point; no prior repo existed |
 | M1 Reliable capture | **Scaffolded**: canonicalization, dedupe, capture API, state machine. The Android share target is a separate client and posts to `POST /v1/captures`; direct video/image uploads go to `POST /v1/captures/upload` (multipart, `video/*` + `image/*`, `MAX_UPLOAD_MB`, deduped by content hash, processed by the normal pipeline via the `upload` source adapter; images skip audio extraction — the image is the frame set); carousel/album shares go to `POST /v1/captures/album` (multipart `files`, 2–30 photos, at most one video, one memory, one quota unit, order-independent dedup; every segment carries `album_index` so citations say "photo N"); web pages go to `POST /v1/captures/url` (platform `web`, SSRF-safe fetch → `article` segment, migration `002_article_modality.sql`) |
-| M2 Source acquisition benchmark | **Measured + implemented**: benchmarked 24 real public reels × 3 unauthenticated approaches (`MILESTONE2-BENCHMARK.md`) — Instagram serves a gated shell page to non-logged-in clients, so metadata yield was 0% and media-byte yield was 0% (no 429s observed; p50 latency ~1.5s/approach). `InstagramAdapter.resolve()` now implements the best policy-compliant path: a single no-cookie direct-page GET (≤10s, head-only byte cap) extracting Open Graph metadata → `MetadataOnly` (worker persists it, memory lands `METADATA_ONLY`); gated/timeout/HTTP errors → honestly classified failures (`SOURCE_RESOLUTION_FAILED` retryable, `SOURCE_RATE_LIMITED` on 429, `Unavailable` on 404). Video bytes are not obtainable without authentication — the backend will never log in — so memories stay metadata-only until an authenticated, consent-based path is approved. SEC-001 host allowlist re-enforced in the adapter. 44 unit tests green |
+| M2 Source acquisition benchmark | **Measured + implemented**: the original 24-Reel benchmark confirmed direct anonymous Instagram fetching yields 0% media bytes. `InstagramAdapter` therefore keeps `direct` as a metadata-only fallback and now supports explicit `apify` mode for public Reels. Apify receives only the public Reel URL, returns a short-lived Instagram CDN `videoUrl`, and Reel Memory downloads that URL into the worker-owned temporary directory with HTTPS host allowlisting and a byte cap. No Instagram login, cookies, or user credentials are collected. `includeTranscript`, `includeDownloadedVideo`, and shares add-ons stay disabled because Reel Memory runs its own media/AI pipeline. Live smoke test on `DdfevZCMhco`: `ResolvedMedia`, 7,914,394-byte H.264 MP4, 52.73s, audio extracted, 12 frames extracted. |
 | M3 Deterministic media pipeline | **Implemented (ffmpeg)**: `_extract_audio` decodes to 16 kHz mono WAV, `_extract_frames` samples up to `MEDIA_FRAME_COUNT` (default 12) JPEGs evenly across the video, scaled to `MEDIA_MAX_DIMENSION_PX` (default 1280px). ffprobe-first probing, `MAX_MEDIA_DURATION_S` cap (default 600s — longer videos fail honestly), hard timeouts, no shell, temp outputs deleted on every path; failures stay `MEDIA_DECODE_FAILED`. Single uploads and album videos share the path; silent videos skip transcription instead of crashing. Without ffmpeg installed, video jobs fail with an install hint — success is never faked. See "Media decoding" below |
 | M4 Multimodal memory | **Wired**: OpenAI-compatible providers (stdlib urllib client, no new deps) for speech/vision/OCR/embeddings/memory generation, selected by `*_PROVIDER` env vars; `hash` keyless embedding for dev/QA; `deterministic` rule-based memory builder. See "AI provider wiring & cost" below |
 | M5 Retrieval engine | **Implemented**: FTS + pgvector + RRF + evidence; needs a real DB + embeddings to run end-to-end |
@@ -477,7 +478,7 @@ at ingest or search.
 |---|---|
 | `VISUAL_INDEX_READY` | Frame embeddings exist — visual search covers this memory. |
 | `VISUAL_BACKFILL_AVAILABLE` | Source media is still present; `POST /v1/memories/{id}/visual-backfill` will index it (local only, no paid APIs). |
-| `VISUAL_BACKFILL_SOURCE_UNAVAILABLE` | Source is gone (uploads are deleted after processing; Instagram URLs never carried video bytes) — visual search cannot cover this memory. The text branches still work. |
+| `VISUAL_BACKFILL_SOURCE_UNAVAILABLE` | Source media is not locally available for backfill (uploads are deleted after processing; current backfill does not reacquire Apify media) — visual search cannot cover this memory. The text branches still work. |
 
 Backfill never claims success from old text/GPT descriptions — it only
 succeeds by actually embedding frames.
@@ -493,10 +494,11 @@ ingesting personal library of 10³–10⁵ memories.
 
 ## What's stubbed and why
 
-- **Media acquisition** — the load-bearing unknown. Per PRD Risk 1, public-reel
-  resolution must be *measured* (success rate, failure types, latency,
-  rate limits) before the architecture commits to an acquisition approach.
-  The stub preserves the URL and keeps the capture durable meanwhile.
+- **Media acquisition** — no longer stubbed for public Instagram Reels when
+  `INSTAGRAM_ACQUISITION_PROVIDER=apify` and a server-side `APIFY_API_TOKEN` are
+  configured. `direct` remains the zero-credential metadata-only fallback. Before
+  production, benchmark Apify success rate, latency, rate limits, and real cost
+  across a larger public-Reel corpus; private/restricted content remains unsupported.
 - **AI providers** — behind ABCs so models are chosen by benchmark (§36), not
   reputation. Stubs raise `ProviderNotConfiguredError` naming exactly what's
   missing; they never silently no-op.

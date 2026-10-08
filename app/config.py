@@ -75,6 +75,15 @@ class Settings(BaseSettings):
     fetch_timeout_s: float = 10.0
     fetch_max_redirects: int = 5
     fetch_user_agent: str = "ReelMemory/1.0 (+website-ingest)"
+
+    # Instagram source acquisition. ``direct`` keeps the anonymous metadata-only
+    # path; ``apify`` resolves public Reel video bytes through Apify and stores
+    # them only in the worker's temporary directory.
+    instagram_acquisition_provider: str = "direct"  # direct | apify
+    apify_api_token: str | None = None
+    apify_actor_id: str = "apify~instagram-reel-scraper"
+    apify_timeout_s: float = 120.0
+    apify_max_media_mb: int = 200
     local_user_email: str = "local@reel-memory"  # single-user local mode (SEC-005)
     # Set true only for throwaway local dev: seeds local_user_email on boot.
     # Production must leave this false and create users via /v1/auth/signup.
