@@ -92,6 +92,18 @@ def test_factory_hash_embedding():
         _restore(saved)
 
 
+def test_factory_local_speech_and_ocr():
+    from app.pipeline import providers_local
+
+    saved = _defaults(speech_provider="faster-whisper", ocr_provider="rapidocr")
+    try:
+        p = build_providers()
+        assert isinstance(p.speech, providers_local.FasterWhisperSpeechProvider)
+        assert isinstance(p.ocr, providers_local.RapidOCRProvider)
+    finally:
+        _restore(saved)
+
+
 def test_factory_unknown_name_fails_loudly():
     saved = _defaults(speech_provider="whisperx")
     try:
@@ -381,6 +393,21 @@ def test_worker_call_honours_provider_failure_code():
     with pytest.raises(StageError) as exc:
         worker._call(FailureCode.VISION_FAILED, boom)
     assert exc.value.code == FailureCode.TRANSCRIPTION_FAILED
+
+
+def test_worker_call_unconfigured_provider_is_not_retryable():
+    from app.pipeline.failures import FailureCode
+    from app.pipeline.providers import ProviderNotConfiguredError
+    from app.pipeline.worker import StageError, Worker
+
+    def boom():
+        raise ProviderNotConfiguredError("missing")
+
+    worker = Worker.__new__(Worker)
+    with pytest.raises(StageError) as exc:
+        worker._call(FailureCode.TRANSCRIPTION_FAILED, boom)
+    assert exc.value.code == FailureCode.TRANSCRIPTION_FAILED
+    assert exc.value.retryable is False
 
 
 def test_worker_call_provider_error_defaults_to_stage_code():

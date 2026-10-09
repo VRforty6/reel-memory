@@ -10,12 +10,14 @@ and hybrid search. See the PRD for the full product spec.
 
 ## What it is
 
-- **Capture-first API** — `POST /v1/captures {"url"}` validates + canonicalizes an
-  Instagram URL, durably stores it, and returns `202` immediately. AI processing
-  happens asynchronously in the worker.
-- **Source adapters** behind a stable interface (Instagram first; TikTok/YouTube
-  later). No credential scraping, no cookie extraction, no private-content
-  bypass — ever.
+- **Capture-first API** — Instagram shares use `POST /v1/captures`; web and
+  YouTube shares use `POST /v1/captures/url`. Each validates + canonicalizes the
+  source, durably stores it, and returns quickly while processing continues in
+  the background worker.
+- **Source adapters** behind a stable interface: Instagram public reels, photos
+  and carousels; YouTube videos/Shorts via public metadata + existing subtitles;
+  and SSRF-safe web articles. No credential scraping, cookie extraction, or
+  private/restricted-content bypass — ever.
 - **Pipeline worker** — advances memories through the PRD §30 state machine with
   classified failures (§31), bounded retries (§32), and guaranteed temp-media
   cleanup (§40).
@@ -123,6 +125,14 @@ curl -X POST localhost:8000/v1/captures/album "${AUTH[@]}" \
 curl -X POST localhost:8000/v1/captures/url "${AUTH[@]}" \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com/article"}'
+
+# Ingest a YouTube video or Short. The maintained Apify YouTube Scraper provides
+# metadata + existing public subtitles; generated cloud transcription is disabled.
+# Videos without subtitles are still saved by title/description, honestly without
+# speech evidence. Raw YouTube video/visual OCR is not acquired in this path.
+curl -X POST localhost:8000/v1/captures/url "${AUTH[@]}" \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://www.youtube.com/watch?v=YmVqWiFEohY"}'
 
 # Ask a question about a reel's contents (memory must be READY)
 curl -X POST localhost:8000/v1/memories/<memory_id>/ask "${AUTH[@]}" \
@@ -507,6 +517,22 @@ ingesting personal library of 10³–10⁵ memories.
   `POST /v1/captures/url`, questions to `POST /v1/memories/{id}/ask`, to-dos
   to `POST /v1/memories/{id}/actions`, decision briefs to
   `POST /v1/memories/{id}/brief`.
+
+## Local-first analysis profile
+
+For the current laptop/server workflow, Reel Memory can analyze public Reel
+media without an OpenAI API key: `SPEECH_PROVIDER=faster-whisper`,
+`OCR_PROVIDER=rapidocr`, `VISION_PROVIDER=none`, and `EMBEDDING_PROVIDER=hash`.
+The semantic vision LLM stage is deliberately optional when vision is `none`;
+transcript + OCR remain searchable, while visual frame indexing can be enabled
+separately with `VISUAL_EMBEDDING_PROVIDER=openclip`. Install the local speech
+and OCR dependencies with `pip install -e ".[local]"`. Provider configuration
+errors are terminal for that attempt and are not retried as transient outages.
+
+The tested Windows baseline is multilingual faster-whisper `base` on CPU/int8
+with 8 CPU threads, plus RapidOCR over up to 6 evenly sampled frames downscaled
+to a 640px maximum dimension. These are throughput defaults, not quality claims;
+benchmark on the target Reel corpus before changing them.
 
 ## AI provider wiring & cost (Milestone 4, PRD §35/§36)
 

@@ -27,10 +27,11 @@ import java.util.UUID
 /**
  * Share target shown in the Android share sheet. Two intake paths:
  *
- * 1. text/plain (what Instagram usually sends: a message containing the reel
- *    URL). The URL is saved to the local queue and synced to
- *    POST /v1/captures. Honest limitation: the backend cannot fetch video
- *    bytes from an unauthenticated URL, so these are labeled "preview only".
+ * 1. text/plain (what Instagram usually sends: a message containing a Reel
+ *    or post URL). The URL is saved to the local queue and synced to
+ *    POST /v1/captures. The backend acquires public Instagram media through
+ *    its configured source adapter (currently Apify) and processes it in the
+ *    background; private/restricted media is never bypassed.
  *
  * 2. video files (when the sending app shares an actual video file). The stream
  *    is copied into app-private storage immediately (durable before any
@@ -433,13 +434,13 @@ class ShareReceiverActivity : ComponentActivity() {
         val userMessage: String
             get() = when {
                 savedWeb > 0 && savedNew == 0 ->
-                    if (savedWeb == 1) "Web link saved — capturing article"
-                    else "$savedWeb web links saved — capturing articles"
+                    if (savedWeb == 1) "Link saved — processing in background"
+                    else "$savedWeb links saved — processing in background"
                 savedNew > 0 && duplicates == 0 && rejected == 0 ->
-                    if (savedNew == 1) "Link saved (preview only — video not readable)"
-                    else "$savedNew links saved (preview only — video not readable)"
+                    if (savedNew == 1) "Instagram link saved — processing in background"
+                    else "$savedNew Instagram links saved — processing in background"
                 savedNew > 0 ->
-                    "Saved $savedNew link(s), preview only ($duplicates already saved, $rejected skipped)"
+                    "Saved $savedNew Instagram link(s) ($duplicates already saved, $rejected skipped)"
                 duplicates > 0 && rejected == 0 -> "Already in Reel Memory"
                 else -> "Couldn't save: no link found to capture"
             }

@@ -70,8 +70,11 @@ def canonicalize_url(url: str) -> CanonicalURL:
     if not SHORTCODE_RE.match(shortcode):
         raise CanonicalizationError("INVALID_URL", f"invalid shortcode: {shortcode!r}")
 
-    # Canonical form: https scheme, bare host, /reel/ path, NO query params (FR-CAP-002).
-    canonical = f"https://instagram.com/reel/{shortcode}"
+    # Canonical form preserves content kind: reels normalize to /reel/, posts to /p/.
+    # The shortcode remains the dedupe identity, but acquisition must know whether
+    # to call the Reel Scraper or Post Scraper.
+    path_kind = "p" if parts[0].lower() == "p" else "reel"
+    canonical = f"https://instagram.com/{path_kind}/{shortcode}"
     return CanonicalURL(
         platform="instagram",
         platform_item_id=shortcode,

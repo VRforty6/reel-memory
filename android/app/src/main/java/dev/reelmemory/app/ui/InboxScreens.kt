@@ -262,8 +262,8 @@ internal fun WebCaptureCard(capture: WebCapture) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Captured from the live web page — the backend reads the article " +
-                    "so you can ask about it.",
+                "Captured from the shared link — supported web and YouTube content " +
+                    "is processed in the background.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -344,8 +344,8 @@ internal fun ShareCard(share: QueuedShare) {
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "Link saved (preview only — video not readable). " +
-                    "Share the actual video file to let Reel Memory see it.",
+                "Instagram link queued. Public media will be fetched and analyzed " +
+                    "in the background; restricted media stays restricted.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

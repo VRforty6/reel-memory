@@ -35,6 +35,7 @@ from app.capture.canonicalize import ALLOWED_HOSTS, CanonicalURL
 from app.config import settings
 from app.pipeline.failures import FailureCode
 from app.sources.base import (
+    AlbumMedia,
     AuthenticationRequired,
     MetadataOnly,
     ResolutionResult,
@@ -163,14 +164,14 @@ def _metadata_from_apify(item: dict) -> SourceMetadata:
     )
 
 
-def _apify_actor_item(canonical: CanonicalURL) -> dict:
-    """Run the official Apify Reel actor synchronously for one public URL."""
+def _run_apify_actor_item(canonical: CanonicalURL, actor_id_raw: str, label: str) -> dict:
+    """Run one Apify actor synchronously for one public Instagram URL."""
     token = (settings.apify_api_token or "").strip()
     if not token:
         raise _ApifyConfigError(
             "INSTAGRAM_ACQUISITION_PROVIDER=apify but APIFY_API_TOKEN is missing"
         )
-    actor_id = urllib.parse.quote(settings.apify_actor_id, safe="~")
+    actor_id = urllib.parse.quote(actor_id_raw, safe="~")
     timeout_s = max(1.0, float(settings.apify_timeout_s))
     endpoint = (
         f"{_APIFY_API_BASE}/actors/{actor_id}/run-sync-get-dataset-items"
@@ -207,27 +208,35 @@ def _apify_actor_item(canonical: CanonicalURL) -> dict:
             ) from e
         if e.code == 404:
             raise _ApifyConfigError(
-                f"Apify actor {settings.apify_actor_id!r} was not found"
+                f"Apify actor {actor_id_raw!r} was not found"
             ) from e
         raise _TransientFetchError(
-            f"Apify actor HTTP {e.code} while resolving the Reel"
+            f"Apify {label} actor HTTP {e.code} while resolving Instagram media"
         ) from e
     except (urllib.error.URLError, TimeoutError) as e:
         raise _TransientFetchError(
-            f"Apify actor request failed: {type(e).__name__}: {e}"
+            f"Apify {label} actor request failed: {type(e).__name__}: {e}"
         ) from e
     except (json.JSONDecodeError, ValueError, TypeError) as e:
-        raise _TransientFetchError(f"invalid Apify actor response: {e}") from e
+        raise _TransientFetchError(f"invalid Apify {label} actor response: {e}") from e
 
     if not isinstance(payload, list):
         raise _TransientFetchError("Apify actor response was not a dataset item list")
     if not payload:
-        raise _ApifyUnavailable("Apify returned no item for this Reel")
+        raise _ApifyUnavailable(f"Apify returned no item for this Instagram {label}")
     item = payload[0]
     if not isinstance(item, dict):
         raise _TransientFetchError("Apify returned a non-object dataset item")
     return item
 
+
+def _apify_actor_item(canonical: CanonicalURL) -> dict:
+    """Backward-compatible Reel actor wrapper used by existing tests."""
+    return _run_apify_actor_item(canonical, settings.apify_actor_id, "Reel")
+
+
+def _apify_post_actor_item(canonical: CanonicalURL) -> dict:
+    return _run_apify_actor_item(canonical, settings.instagram_post_actor_id, "Post")
 
 def _is_allowed_media_url(url: str) -> bool:
     parsed = urllib.parse.urlparse(url)
@@ -240,25 +249,27 @@ def _is_allowed_media_url(url: str) -> bool:
     )
 
 
-def _download_apify_video(video_url: str, work_dir: str, shortcode: str) -> str:
-    """Download an Apify-returned Instagram CDN URL into worker temp storage."""
-    if not _is_allowed_media_url(video_url):
-        host = urllib.parse.urlparse(video_url).hostname
+def _download_apify_asset(
+    media_url: str, work_dir: str, filename: str, *, accept: str = "*/*"
+) -> str:
+    """Download an Apify-returned Instagram CDN asset into worker temp storage."""
+    if not _is_allowed_media_url(media_url):
+        host = urllib.parse.urlparse(media_url).hostname
         raise _ApifyConfigError(
             f"refusing unexpected media URL returned by Apify (host={host!r})"
         )
 
     dest_dir = Path(work_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
-    final = dest_dir / f"instagram-{shortcode}.mp4"
-    part = dest_dir / f"instagram-{shortcode}.part"
+    final = dest_dir / filename
+    part = dest_dir / (filename + ".part")
     max_bytes = max(1, int(settings.apify_max_media_mb)) * 1024 * 1024
     req = urllib.request.Request(
-        video_url,
+        media_url,
         headers={
             "User-Agent": _USER_AGENT,
             "Referer": "https://www.instagram.com/",
-            "Accept": "video/*,*/*;q=0.8",
+            "Accept": accept,
         },
     )
     written = 0
@@ -269,7 +280,7 @@ def _download_apify_video(video_url: str, work_dir: str, shortcode: str) -> str:
                 try:
                     if int(length) > max_bytes:
                         raise _ApifyConfigError(
-                            f"Reel media exceeds APIFY_MAX_MEDIA_MB={settings.apify_max_media_mb}"
+                            f"Instagram media exceeds APIFY_MAX_MEDIA_MB={settings.apify_max_media_mb}"
                         )
                 except ValueError:
                     pass
@@ -281,11 +292,11 @@ def _download_apify_video(video_url: str, work_dir: str, shortcode: str) -> str:
                     written += len(chunk)
                     if written > max_bytes:
                         raise _ApifyConfigError(
-                            f"Reel media exceeds APIFY_MAX_MEDIA_MB={settings.apify_max_media_mb}"
+                            f"Instagram media exceeds APIFY_MAX_MEDIA_MB={settings.apify_max_media_mb}"
                         )
                     f.write(chunk)
         if written <= 0:
-            raise _TransientFetchError("Instagram CDN returned an empty video")
+            raise _TransientFetchError("Instagram CDN returned an empty media asset")
         part.replace(final)
         return str(final)
     except urllib.error.HTTPError as e:
@@ -304,6 +315,18 @@ def _download_apify_video(video_url: str, work_dir: str, shortcode: str) -> str:
                 part.unlink()
             except OSError:
                 pass
+
+
+def _download_apify_video(video_url: str, work_dir: str, shortcode: str) -> str:
+    return _download_apify_asset(
+        video_url, work_dir, f"instagram-{shortcode}.mp4", accept="video/*,*/*;q=0.8"
+    )
+
+
+def _download_apify_image(image_url: str, work_dir: str, shortcode: str, index: int = 0) -> str:
+    return _download_apify_asset(
+        image_url, work_dir, f"instagram-{shortcode}-{index:02d}.jpg", accept="image/*,*/*;q=0.8"
+    )
 
 
 class InstagramAdapter(SourceAdapter):
@@ -338,6 +361,10 @@ class InstagramAdapter(SourceAdapter):
             return Unsupported(
                 detail="Apify media acquisition requires a worker temporary directory"
             )
+        path_parts = [p for p in urllib.parse.urlparse(canonical.canonical_url).path.split("/") if p]
+        if path_parts and path_parts[0].lower() == "p":
+            return self._resolve_apify_post(canonical, work_dir=work_dir)
+
         try:
             item = _apify_actor_item(canonical)
         except _RateLimited as e:
@@ -411,6 +438,106 @@ class InstagramAdapter(SourceAdapter):
             media_path=media_path,
             duration_s=duration_s,
         )
+
+    def _resolve_apify_post(
+        self, canonical: CanonicalURL, *, work_dir: str
+    ) -> ResolutionResult:
+        """Resolve a public /p/ post, including image and carousel media."""
+        try:
+            item = _apify_post_actor_item(canonical)
+        except _RateLimited as e:
+            return RetryableFailure(canonical, FailureCode.SOURCE_RATE_LIMITED.value, True, str(e))
+        except _ApifyUnavailable as e:
+            return Unavailable(canonical=canonical, reason=str(e))
+        except _ApifyConfigError as e:
+            return Unsupported(detail=str(e))
+        except _TransientFetchError as e:
+            return RetryableFailure(canonical, FailureCode.SOURCE_RESOLUTION_FAILED.value, True, e.detail)
+
+        error = str(item.get("error") or "").strip()
+        description = str(item.get("errorDescription") or error or "").strip()
+        if error:
+            lowered = f"{error} {description}".lower()
+            if "not_found" in lowered or "not found" in lowered or "deleted" in lowered:
+                return Unavailable(canonical=canonical, reason=description or error)
+            if "private" in lowered or "login" in lowered or "access" in lowered:
+                return AuthenticationRequired(canonical=canonical, detail=description or error)
+            return RetryableFailure(
+                canonical, FailureCode.SOURCE_RESOLUTION_FAILED.value, True,
+                f"Apify could not fully scrape the Instagram post: {description or error}",
+            )
+
+        metadata = _metadata_from_apify(item)
+        post_type = str(item.get("type") or "").lower()
+        children = item.get("childPosts")
+        if not isinstance(children, list):
+            children = []
+
+        try:
+            if post_type == "sidecar" or children:
+                assets: list[str] = []
+                if len(children) > settings.max_album_files:
+                    return Unsupported(
+                        detail=f"Instagram carousel has {len(children)} items; max is {settings.max_album_files}"
+                    )
+                for idx, child in enumerate(children):
+                    if not isinstance(child, dict):
+                        continue
+                    video_url = child.get("videoUrl")
+                    image_url = child.get("displayUrl")
+                    if video_url:
+                        assets.append(_download_apify_asset(
+                            str(video_url), work_dir,
+                            f"instagram-{canonical.platform_item_id}-{idx:02d}.mp4",
+                            accept="video/*,*/*;q=0.8",
+                        ))
+                    elif image_url:
+                        assets.append(_download_apify_image(
+                            str(image_url), work_dir, canonical.platform_item_id, idx
+                        ))
+                # Some actor outputs expose image URLs directly instead of childPosts.
+                if not assets:
+                    images = item.get("images")
+                    if isinstance(images, list):
+                        for idx, image_url in enumerate(images[: settings.max_album_files]):
+                            if image_url:
+                                assets.append(_download_apify_image(
+                                    str(image_url), work_dir, canonical.platform_item_id, idx
+                                ))
+                if len(assets) >= 2:
+                    total = sum(Path(x).stat().st_size for x in assets)
+                    if total > settings.max_album_mb * 1024 * 1024:
+                        return Unsupported(detail="Instagram carousel exceeds MAX_ALBUM_MB")
+                    return AlbumMedia(canonical=canonical, metadata=metadata, files=assets)
+                if len(assets) == 1:
+                    return ResolvedMedia(canonical=canonical, metadata=metadata, media_path=assets[0])
+                return MetadataOnly(canonical=canonical, metadata=metadata)
+
+            video_url = item.get("videoUrl")
+            if video_url:
+                media_path = _download_apify_video(
+                    str(video_url), work_dir, canonical.platform_item_id
+                )
+                duration = item.get("videoDuration")
+                try:
+                    duration_s = float(duration) if duration is not None else None
+                except (TypeError, ValueError):
+                    duration_s = None
+                return ResolvedMedia(canonical, metadata, media_path, duration_s)
+
+            image_url = item.get("displayUrl")
+            if image_url:
+                media_path = _download_apify_image(
+                    str(image_url), work_dir, canonical.platform_item_id, 0
+                )
+                return ResolvedMedia(canonical, metadata, media_path, None)
+            return MetadataOnly(canonical=canonical, metadata=metadata)
+        except _RateLimited as e:
+            return RetryableFailure(canonical, FailureCode.SOURCE_RATE_LIMITED.value, True, str(e))
+        except _ApifyConfigError as e:
+            return Unsupported(detail=str(e))
+        except _TransientFetchError as e:
+            return RetryableFailure(canonical, FailureCode.MEDIA_DOWNLOAD_FAILED.value, True, e.detail)
 
     def _resolve_direct(self, canonical: CanonicalURL) -> ResolutionResult:
         try:

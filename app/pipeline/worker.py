@@ -47,6 +47,8 @@ from app.pipeline.providers import (
     ProviderError,
     ProviderNotConfiguredError,
     Providers,
+    TranscriptSegment,
+    UnconfiguredVisionProvider,
 )
 from app.pipeline.state_machine import (
     ProcessingStatus,
@@ -62,6 +64,7 @@ from app.sources.base import (
     ResolvedMedia,
     RetryableFailure,
     SourceMetadata,
+    TranscriptContent,
     Unavailable,
     Unsupported,
 )
@@ -88,12 +91,25 @@ def _media_kind_for_media(suffix: str) -> str:
 
 
 class StageError(Exception):
-    """A pipeline stage failed with a classified FailureCode."""
+    """A pipeline stage failed with a classified FailureCode.
 
-    def __init__(self, code: FailureCode, message: str) -> None:
+    retryable_override lets the exception source narrow a broadly retryable
+    taxonomy code. Example: TRANSCRIPTION_FAILED is normally retryable for a
+    transient provider outage, but "provider not configured" can never heal
+    by sleeping and retrying.
+    """
+
+    def __init__(
+        self, code: FailureCode, message: str, *, retryable_override: bool | None = None
+    ) -> None:
         super().__init__(f"{code.value}: {message}")
         self.code = code
         self.message = message
+        self.retryable_override = retryable_override
+
+    @property
+    def retryable(self) -> bool:
+        return self.code.retryable if self.retryable_override is None else self.retryable_override
 
 
 class TerminalState(Exception):
@@ -352,9 +368,15 @@ class Worker:
                 # QUEUED -> QUEUED is the idempotent no-op; CAPTURED -> QUEUED
                 # is legal. The next poll picks the job up from the top.
                 self._transition(db, memory, job, ProcessingStatus.QUEUED)
+            elif status == ProcessingStatus.FAILED_RETRYABLE:
+                # A worker can die after persisting FAILED_RETRYABLE but before
+                # it moves the row back to QUEUED. Repeating
+                # FAILED_RETRYABLE -> FAILED_RETRYABLE is illegal; resume the
+                # already-recorded retry directly.
+                self._transition(db, memory, job, ProcessingStatus.QUEUED)
             else:
-                # Every mid-pipeline stage may step to FAILED_RETRYABLE and
-                # from there back to QUEUED — all assert_transition-checked.
+                # Every other mid-pipeline stage may step to FAILED_RETRYABLE
+                # and from there back to QUEUED — all assert-transition checked.
                 self._transition(
                     db, memory, job, ProcessingStatus.FAILED_RETRYABLE,
                     code="WORKER_RECOVERED",
@@ -484,6 +506,14 @@ class Worker:
                 db.commit()
             while attempt <= MAX_ATTEMPTS:
                 try:
+                    # Every queued attempt restarts the pipeline from the
+                    # beginning. Remove evidence from an earlier completed
+                    # run (explicit reprocess) or failed attempt before
+                    # persisting replacement segments; otherwise speech/OCR
+                    # rows accumulate and distort FTS results.
+                    if coerce(memory.processing_status) == ProcessingStatus.QUEUED:
+                        self._clear_partial_evidence(db, memory.id)
+                        db.commit()
                     self._run_stages(db, job, memory, item, tmp)
                 except TerminalState as t:
                     self._finish(
@@ -494,7 +524,7 @@ class Worker:
                     self._discard_upload_source(item)
                     return
                 except StageError as e:
-                    if e.code.retryable and attempt < MAX_ATTEMPTS:
+                    if e.retryable and attempt < MAX_ATTEMPTS:
                         wait = backoff_seconds(attempt)
                         self._transition(
                             db, memory, job, ProcessingStatus.FAILED_RETRYABLE,
@@ -600,7 +630,9 @@ class Worker:
             # hint when present, else the stage's code (both stay in taxonomy).
             raise StageError(e.failure_code or code, str(e)) from e
         except ProviderNotConfiguredError as e:
-            raise StageError(code, str(e)) from e
+            # Configuration errors are permanent until an operator changes
+            # settings; retrying the same call wastes time and blocks the queue.
+            raise StageError(code, str(e), retryable_override=False) from e
         except SQLAlchemyError as e:
             raise StageError(
                 FailureCode.DATABASE_FAILED, f"{type(e).__name__}: {e}"
@@ -669,14 +701,22 @@ class Worker:
             self._ingest_article(db, memory, item, job, result)
             return
 
+        if isinstance(result, TranscriptContent):
+            # YouTube: use public timestamped subtitles when available. No raw
+            # video bytes or generated cloud transcription are required.
+            self._ingest_transcript_content(db, memory, item, job, result)
+            return
+
         if isinstance(result, AlbumMedia):
             # Carousel/album: one memory over many files. Every file is
             # processed; each segment carries its album_index so citations
             # can name the photo ("photo 7" = index 6).
+            self._apply_source_metadata(db, item, result.metadata, source_status="RESOLVED")
             self._process_album(db, memory, item, job, result, tmp)
             return
 
         media: ResolvedMedia = result
+        self._apply_source_metadata(db, item, media.metadata, source_status="RESOLVED")
         self._transition(db, memory, job, ProcessingStatus.MEDIA_READY)
         if not media.media_path:
             raise StageError(
@@ -715,9 +755,17 @@ class Worker:
             )
 
         self._transition(db, memory, job, ProcessingStatus.ANALYZING_VISUALS)
-        visuals = self._call(
-            FailureCode.VISION_FAILED, self.providers.vision.analyze_frames, frame_paths
-        )
+        if isinstance(self.providers.vision, UnconfiguredVisionProvider):
+            # Semantic vision is optional in the local-first pipeline. OCR +
+            # transcript + OpenCLIP can make a memory searchable without a
+            # multimodal LLM; "none" is an explicit operator choice, not a
+            # silent provider failure.
+            visuals = []
+            log.info("semantic vision disabled; continuing with local text/visual indexing")
+        else:
+            visuals = self._call(
+                FailureCode.VISION_FAILED, self.providers.vision.analyze_frames, frame_paths
+            )
         self._persist_segments(
             db, memory, "visual",
             [(o.timestamp_ms, None, o.description) for o in visuals],
@@ -812,18 +860,21 @@ class Worker:
 
         self._transition(db, memory, job, ProcessingStatus.ANALYZING_VISUALS)
         visuals_all = []
-        for idx, _path in indexed:
-            visuals = self._call(
-                FailureCode.VISION_FAILED,
-                self.providers.vision.analyze_frames,
-                frame_sets[idx],
-            )
-            self._persist_segments(
-                db, memory, "visual",
-                [(o.timestamp_ms, None, o.description) for o in visuals],
-                metadata={"album_index": idx},
-            )
-            visuals_all.extend(visuals)
+        if isinstance(self.providers.vision, UnconfiguredVisionProvider):
+            log.info("semantic vision disabled for album; continuing with OCR/visual indexing")
+        else:
+            for idx, _path in indexed:
+                visuals = self._call(
+                    FailureCode.VISION_FAILED,
+                    self.providers.vision.analyze_frames,
+                    frame_sets[idx],
+                )
+                self._persist_segments(
+                    db, memory, "visual",
+                    [(o.timestamp_ms, None, o.description) for o in visuals],
+                    metadata={"album_index": idx},
+                )
+                visuals_all.extend(visuals)
         # One-time visual frame index (see single-file path above).
         self._index_visual_frames(db, memory, visual_samples_all)
 
@@ -861,6 +912,8 @@ class Worker:
         item: SourceItem,
         job: ProcessingJob,
         evidence: PipelineEvidence,
+        *,
+        preferred_title: str | None = None,
     ) -> None:
         """Shared tail of the media pipeline: memory generation, indexing,
         READY. Used by both the single-file path and the album path."""
@@ -872,7 +925,7 @@ class Worker:
             # spend; Milestone 4 wires the real MemoryGenerator provider.
             log.info("memory generator not configured; using deterministic builder")
             generated = build_memory(evidence)
-        memory.title = generated.title
+        memory.title = (preferred_title or generated.title)[:200]
         memory.summary = generated.summary
         memory.category = generated.category
         memory.language = generated.language
@@ -888,6 +941,42 @@ class Worker:
         self._index_segments(db, memory, job)
 
         self._transition(db, memory, job, ProcessingStatus.READY)
+
+    def _ingest_transcript_content(
+        self,
+        db: Session,
+        memory: Memory,
+        item: SourceItem,
+        job: ProcessingJob,
+        content: TranscriptContent,
+    ) -> None:
+        """YouTube/text-first video path: persist public subtitle cues and index.
+
+        Empty subtitle lists are honest: title/description still become a READY
+        memory, but no speech evidence is fabricated.
+        """
+        self._apply_source_metadata(db, item, content.metadata, source_status="RESOLVED")
+        memory.media_kind = "video"
+        transcript = [
+            TranscriptSegment(start_ms=start, end_ms=end, text=text)
+            for start, end, text in content.segments
+            if text and text.strip()
+        ]
+        self._persist_segments(
+            db, memory, "speech",
+            [(s.start_ms, s.end_ms, s.text) for s in transcript],
+        )
+        evidence = PipelineEvidence(
+            transcript=transcript,
+            metadata=SourceMetadata(
+                creator_handle=item.creator_handle,
+                caption=item.caption,
+                published_at=item.published_at,
+            ),
+        )
+        self._generate_memory_and_index(
+            db, memory, item, job, evidence, preferred_title=content.title
+        )
 
     def _ingest_article(
         self,
@@ -971,16 +1060,27 @@ class Worker:
                 )
         db.commit()
 
-    def _persist_metadata(
-        self, db: Session, memory: Memory, item: SourceItem, metadata: SourceMetadata
+    def _apply_source_metadata(
+        self, db: Session, item: SourceItem, metadata: SourceMetadata, *, source_status: str | None = None
     ) -> None:
+        """Persist source metadata without creating evidence rows.
+
+        Resolved media later writes caption evidence in the shared generation tail;
+        keeping this helper evidence-free avoids duplicate caption segments.
+        """
         item.creator_handle = metadata.creator_handle
         item.caption = metadata.caption
         item.published_at = metadata.published_at
-        item.source_status = "METADATA_ONLY"
+        if source_status is not None:
+            item.source_status = source_status
+        db.commit()
+
+    def _persist_metadata(
+        self, db: Session, memory: Memory, item: SourceItem, metadata: SourceMetadata
+    ) -> None:
+        self._apply_source_metadata(db, item, metadata, source_status="METADATA_ONLY")
         if metadata.caption:
             self._persist_segments(db, memory, "caption", [(None, None, metadata.caption)])
-        db.commit()
 
     def _extract_audio(self, media_path: str, tmp: Path) -> str | None:
         """Decode the video's audio to 16 kHz mono WAV (Milestone 3: ffmpeg).

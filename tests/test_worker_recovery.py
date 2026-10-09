@@ -42,6 +42,7 @@ class _FakeQuery:
 
     def __init__(self, rows):
         self._rows = list(rows)
+        self.delete_calls = 0
 
     def join(self, *a, **k):
         return self
@@ -53,6 +54,7 @@ class _FakeQuery:
         return list(self._rows)
 
     def delete(self):
+        self.delete_calls += 1
         n = len(self._rows)
         self._rows.clear()
         return n
@@ -215,6 +217,18 @@ def test_recovery_preserves_attempt_count_already_consumed_by_claim():
     assert job.attempt_count == 1
 
 
+def test_recovery_from_already_failed_retryable_requeues_directly():
+    job = _job(attempt_count=1, started_at=_utcnow() - timedelta(hours=2))
+    memory = _memory(ProcessingStatus.FAILED_RETRYABLE)
+    db = _FakeDB(running_rows=[(job, memory)])
+    worker = _worker()
+
+    assert worker.recover_orphaned_jobs(db) == 1
+    assert memory.processing_status == ProcessingStatus.QUEUED.value
+    assert job.status == "QUEUED"
+    assert job.attempt_count == 1
+
+
 def test_recovery_crash_loop_terminates_at_budget():
     # A claim that consumed the last attempt fails on recovery rather than
     # being queued for an impossible extra attempt.
@@ -328,6 +342,42 @@ def test_poll_claim_atomically_consumes_attempt(monkeypatch):
     assert worker.poll_once() is True
     assert observed == [("RUNNING", 1, 1)]
     assert db.closed
+
+
+def test_each_queued_attempt_replaces_existing_evidence(monkeypatch, tmp_path):
+    """Explicit reprocess and automatic retry must not append duplicate
+    speech/OCR/index rows from the previous run or attempt."""
+    from app.config import settings
+    from app.pipeline.failures import FailureCode
+    from app.pipeline.worker import StageError
+
+    job = _job(status="RUNNING", attempt_count=1)
+    memory = _memory(ProcessingStatus.QUEUED)
+    item = SimpleNamespace(platform="instagram", platform_item_id="known-reel")
+    db = _FakeDB(segments=[object()], embeddings=[object()], tags=[object()])
+    worker = Worker(lambda: db)
+    calls = 0
+
+    def run_stages(_db, _job, mem, _item, _tmp):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            mem.processing_status = ProcessingStatus.TRANSCRIBING.value
+            raise StageError(FailureCode.TRANSCRIPTION_FAILED, "transient")
+        mem.processing_status = ProcessingStatus.READY.value
+
+    monkeypatch.setattr(settings, "temp_dir", str(tmp_path))
+    monkeypatch.setattr("app.pipeline.worker.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr(worker, "_run_stages", run_stages)
+
+    worker._process_job(db, job, memory, item)
+
+    assert calls == 2
+    assert job.status == "DONE"
+    assert memory.processing_status == ProcessingStatus.READY.value
+    assert db._segments.delete_calls == 2
+    assert db._embeddings.delete_calls == 2
+    assert db._tags.delete_calls == 2
 
 
 def test_second_worker_fails_without_running_recovery():

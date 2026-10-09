@@ -17,9 +17,21 @@ class Settings(BaseSettings):
     # OpenAI-compatible endpoint). "hash" = deterministic keyless embedding
     # for dev/QA (lexical, not semantic). "deterministic" = the rule-based
     # memory builder (no AI spend).
-    speech_provider: str = "none"  # "none" | "openai"
-    vision_provider: str = "none"  # "none" | "openai"
-    ocr_provider: str = "none"  # "none" | "openai"
+    speech_provider: str = "none"  # "none" | "openai" | "faster-whisper"
+    vision_provider: str = "none"  # "none" | "openai"; none = skip semantic vision stage
+    ocr_provider: str = "none"  # "none" | "openai" | "rapidocr"
+    # Local/offline providers. Start CPU-first for reliability on Windows;
+    # switch LOCAL_WHISPER_DEVICE=cuda after a successful CUDA benchmark.
+    local_whisper_model: str = "base"
+    local_whisper_device: str = "cpu"
+    local_whisper_compute_type: str = "int8"
+    local_whisper_beam_size: int = 1
+    local_whisper_cpu_threads: int = 8
+    local_model_cache_dir: str | None = None
+    # OCR is CPU-local. Bound both frame count and resolution so a short Reel
+    # cannot monopolize the single worker for minutes.
+    local_ocr_max_frames: int = 6
+    local_ocr_max_dimension_px: int = 640
     memory_generator_provider: str = "deterministic"  # "deterministic" | "openai" | "none"
     # Conversational Q&A (ask): single-turn chat over a memory's evidence.
     chat_provider: str = "none"  # "none" | "openai"
@@ -82,6 +94,10 @@ class Settings(BaseSettings):
     instagram_acquisition_provider: str = "direct"  # direct | apify
     apify_api_token: str | None = None
     apify_actor_id: str = "apify~instagram-reel-scraper"
+    instagram_post_actor_id: str = "apify~instagram-post-scraper"
+    youtube_actor_id: str = "streamers~youtube-scraper"
+    youtube_subtitles_language: str = "en"
+    youtube_max_subtitle_chars: int = 250000
     apify_timeout_s: float = 120.0
     apify_max_media_mb: int = 200
     local_user_email: str = "local@reel-memory"  # single-user local mode (SEC-005)

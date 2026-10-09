@@ -49,6 +49,7 @@ from app.schemas import (
     UrlCaptureRequest,
 )
 from app.sources.webpage import canonicalize_web_url
+from app.sources.youtube import canonicalize_youtube_url, is_youtube_url
 
 router = APIRouter()
 
@@ -332,17 +333,20 @@ def capture_url(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> CaptureResponse:
-    """Ingest a web page as a memory (platform "web").
+    """Ingest a web page or YouTube video URL as a memory.
 
-    The URL is validated here (https only, no credentials); the worker
-    fetches it SSRF-safely (public IPs only, redirect limit, byte cap,
-    timeout) and stores the extracted main article text as an "article"
-    segment. Fetch failures are classified honestly by the worker
+    YouTube video/Short URLs are routed to the dedicated YouTube source
+    adapter (public metadata + existing subtitles). Other URLs stay on the
+    SSRF-safe article fetch path. Fetch failures are classified honestly by the worker
     (retryable / auth-required / gone / unsupported).
     Returns 202 (or 200 with duplicate=true for an already-READY page).
     """
     try:
-        canon = canonicalize_web_url(req.url)
+        canon = (
+            canonicalize_youtube_url(req.url)
+            if is_youtube_url(req.url)
+            else canonicalize_web_url(req.url)
+        )
     except CanonicalizationError as e:
         raise HTTPException(
             status_code=422, detail={"code": e.code, "message": str(e)}

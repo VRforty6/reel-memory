@@ -276,9 +276,9 @@ class DeterministicMemoryGenerator(MemoryGenerator):
 # --- Factory: env names -> provider bundle ----------------------------------
 
 _VALID_CHOICES = {
-    "speech": ("none", "openai"),
+    "speech": ("none", "openai", "faster-whisper"),
     "vision": ("none", "openai"),
-    "ocr": ("none", "openai"),
+    "ocr": ("none", "openai", "rapidocr"),
     "embedding": ("none", "openai", "hash"),
     "memory_generator": ("none", "openai", "deterministic"),
     "chat": ("none", "openai"),
@@ -295,7 +295,7 @@ def build_providers() -> Providers:
     missing setting for unknown or incomplete configuration.
     """
     from app.config import settings  # local import: avoid import cycle
-    from app.pipeline import providers_http
+    from app.pipeline import providers_http, providers_local
 
     def pick(stage: str, name: str) -> str:
         choices = _VALID_CHOICES[stage]
@@ -328,7 +328,11 @@ def build_providers() -> Providers:
         speech=(
             providers_http.OpenAISpeechProvider()
             if speech_name == "openai"
-            else UnconfiguredSpeechProvider()
+            else (
+                providers_local.FasterWhisperSpeechProvider()
+                if speech_name == "faster-whisper"
+                else UnconfiguredSpeechProvider()
+            )
         ),
         vision=(
             providers_http.OpenAIVisionProvider()
@@ -338,7 +342,11 @@ def build_providers() -> Providers:
         ocr=(
             providers_http.OpenAIOCRProvider()
             if ocr_name == "openai"
-            else UnconfiguredOCRProvider()
+            else (
+                providers_local.RapidOCRProvider()
+                if ocr_name == "rapidocr"
+                else UnconfiguredOCRProvider()
+            )
         ),
         embedding=(
             providers_http.OpenAIEmbeddingProvider()

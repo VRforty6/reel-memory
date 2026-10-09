@@ -6,6 +6,7 @@ from app.sources.base import SourceAdapter
 from app.sources.instagram import InstagramAdapter
 from app.sources.upload import UploadAdapter
 from app.sources.webpage import WebpageAdapter
+from app.sources.youtube import YouTubeAdapter
 
 
 class UnsupportedSourceError(ValueError):
@@ -18,7 +19,8 @@ _ADAPTERS: dict[str, SourceAdapter] = {
     "instagram": InstagramAdapter(),
     "upload": UploadAdapter(),  # direct video file uploads (no URL resolution)
     "web": WebpageAdapter(),  # website ingestion: SSRF-safe fetch -> article text
-    # Future: "tiktok": TikTokAdapter(), "youtube": YouTubeShortsAdapter() (PRD §53)
+    "youtube": YouTubeAdapter(),  # public metadata + existing subtitles via Apify
+    # Future: "tiktok": TikTokAdapter() (PRD §53)
 }
 
 

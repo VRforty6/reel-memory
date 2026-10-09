@@ -72,6 +72,9 @@ _TRANSITIONS: dict[ProcessingStatus, frozenset[ProcessingStatus]] = {
     ProcessingStatus.RESOLVING_SOURCE: frozenset(
         {
             ProcessingStatus.MEDIA_READY,
+            # Text-first sources (web articles, YouTube public subtitles)
+            # already have usable evidence and do not need raw-media stages.
+            ProcessingStatus.GENERATING_MEMORY,
             ProcessingStatus.METADATA_ONLY,
             ProcessingStatus.SOURCE_UNAVAILABLE,
             ProcessingStatus.SOURCE_REQUIRES_ACCESS,

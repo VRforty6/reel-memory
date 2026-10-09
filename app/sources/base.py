@@ -57,6 +57,21 @@ class ArticleContent:
 
 
 @dataclass(frozen=True)
+class TranscriptContent:
+    """Public video metadata plus timestamped subtitle/transcript text.
+
+    Used for sources such as YouTube where public captions are available even
+    when Reel Memory does not acquire raw video bytes. Segment tuples are
+    ``(start_ms, end_ms, text)`` and remain untrusted source data.
+    """
+
+    canonical: CanonicalURL
+    metadata: SourceMetadata
+    title: Optional[str]
+    segments: list[tuple[int, int, str]]
+
+
+@dataclass(frozen=True)
 class AlbumMedia:
     """A carousel/album: one memory over multiple uploaded files.
 
@@ -104,7 +119,7 @@ class RetryableFailure:
 
 
 ResolutionResult = Union[
-    ResolvedMedia, AlbumMedia, MetadataOnly, ArticleContent, Unavailable, AuthenticationRequired, Unsupported, RetryableFailure
+    ResolvedMedia, AlbumMedia, MetadataOnly, ArticleContent, TranscriptContent, Unavailable, AuthenticationRequired, Unsupported, RetryableFailure
 ]
 
 

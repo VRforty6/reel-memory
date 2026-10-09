@@ -74,8 +74,9 @@ def _clean_caches():
 
 @pytest.fixture()
 def jwt_secret(monkeypatch):
-    monkeypatch.setattr(settings, "jwt_secret", "test-secret-for-unit-tests")
-    return "test-secret-for-unit-tests"
+    secret = "test-only-jwt-secret-at-least-32-bytes"
+    monkeypatch.setattr(settings, "jwt_secret", secret)
+    return secret
 
 
 # --- passwords ----------------------------------------------------------------

@@ -25,10 +25,10 @@ def test_tracking_params_stripped():
 def test_reels_plural_and_post_paths():
     assert canonicalize_url("https://instagram.com/reels/AbC123").platform_item_id == "AbC123"
     assert canonicalize_url("https://instagram.com/p/AbC123").platform_item_id == "AbC123"
-    # both normalize to the /reel/ canonical form
-    assert canonicalize_url("https://m.instagram.com/p/AbC123").canonical_url == (
-        "https://instagram.com/reel/AbC123"
-    )
+    # /reels/ normalizes to /reel/, while /p/ is preserved so acquisition
+    # can select the Instagram Post Scraper for photos/carousels.
+    assert canonicalize_url("https://instagram.com/reels/AbC123").canonical_url == "https://instagram.com/reel/AbC123"
+    assert canonicalize_url("https://m.instagram.com/p/AbC123").canonical_url == "https://instagram.com/p/AbC123"
 
 
 def test_mobile_host_and_missing_scheme():

@@ -15,7 +15,7 @@ from app.config import settings
 from app.pipeline.state_machine import ProcessingStatus
 from app.pipeline.worker import Worker
 from app.sources import instagram as ig
-from app.sources.base import MetadataOnly, ResolvedMedia, RetryableFailure, Unavailable, Unsupported
+from app.sources.base import AlbumMedia, MetadataOnly, ResolvedMedia, RetryableFailure, Unavailable, Unsupported
 
 @pytest.fixture(autouse=True)
 def _default_to_direct_instagram_mode(monkeypatch):
@@ -284,3 +284,58 @@ def test_gated_shell_job_is_a_single_attempt_no_retries(monkeypatch, tmp_path):
     assert job.attempt_count == 1  # no three-attempt loop
     assert sleeps == []  # no backoff scheduled
     assert job.failure_code is None  # not a failure at all
+
+
+
+def test_apify_post_image_returns_processable_media(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "instagram_acquisition_provider", "apify")
+    item = {
+        "shortCode": "Post123",
+        "type": "Image",
+        "ownerUsername": "post_creator",
+        "caption": "nine github repos",
+        "displayUrl": "https://scontent-test.cdninstagram.com/photo.jpg",
+        "timestamp": "2026-10-08T12:00:00.000Z",
+    }
+    monkeypatch.setattr(ig, "_apify_post_actor_item", lambda canonical: item)
+    image_path = tmp_path / "instagram-Post123-00.jpg"
+    image_path.write_bytes(b"fake-jpg")
+    monkeypatch.setattr(
+        ig, "_download_apify_image",
+        lambda image_url, work_dir, shortcode, index=0: str(image_path),
+    )
+    result = adapter().resolve(
+        canon("https://www.instagram.com/p/Post123/"), work_dir=str(tmp_path)
+    )
+    assert isinstance(result, ResolvedMedia)
+    assert result.media_path == str(image_path)
+    assert result.metadata.creator_handle == "post_creator"
+    assert result.metadata.caption == "nine github repos"
+
+
+def test_apify_post_carousel_returns_album_media(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "instagram_acquisition_provider", "apify")
+    item = {
+        "shortCode": "Side123",
+        "type": "Sidecar",
+        "ownerUsername": "carousel_creator",
+        "caption": "carousel caption",
+        "displayUrl": "https://scontent-test.cdninstagram.com/cover.jpg",
+        "childPosts": [
+            {"type": "Image", "displayUrl": "https://scontent-test.cdninstagram.com/1.jpg"},
+            {"type": "Image", "displayUrl": "https://scontent-test.cdninstagram.com/2.jpg"},
+        ],
+    }
+    monkeypatch.setattr(ig, "_apify_post_actor_item", lambda canonical: item)
+    def fake_image(url, work_dir, shortcode, index=0):
+        path = tmp_path / f"instagram-{shortcode}-{index:02d}.jpg"
+        path.write_bytes((f"img-{index}").encode())
+        return str(path)
+    monkeypatch.setattr(ig, "_download_apify_image", fake_image)
+    result = adapter().resolve(
+        canon("https://www.instagram.com/p/Side123/"), work_dir=str(tmp_path)
+    )
+    assert isinstance(result, AlbumMedia)
+    assert len(result.files) == 2
+    assert result.metadata.creator_handle == "carousel_creator"
+    assert result.metadata.caption == "carousel caption"

@@ -20,14 +20,18 @@ class UrlCanonicalizerTest {
     }
 
     @Test
-    fun `reels plural and p paths accepted`() {
-        for (path in listOf("reels", "p")) {
-            val result = UrlCanonicalizer.canonicalize(
-                "https://instagram.com/$path/AbC_12-xy/"
-            ) as UrlCanonicalizer.Result.Ok
-            assertEquals("AbC_12-xy", result.platformItemId)
-            assertEquals("https://instagram.com/reel/AbC_12-xy", result.canonicalUrl)
-        }
+    fun `reels plural normalizes but post path is preserved`() {
+        val reel = UrlCanonicalizer.canonicalize(
+            "https://instagram.com/reels/AbC_12-xy/"
+        ) as UrlCanonicalizer.Result.Ok
+        assertEquals("AbC_12-xy", reel.platformItemId)
+        assertEquals("https://instagram.com/reel/AbC_12-xy", reel.canonicalUrl)
+
+        val post = UrlCanonicalizer.canonicalize(
+            "https://instagram.com/p/AbC_12-xy/"
+        ) as UrlCanonicalizer.Result.Ok
+        assertEquals("AbC_12-xy", post.platformItemId)
+        assertEquals("https://instagram.com/p/AbC_12-xy", post.canonicalUrl)
     }
 
     @Test

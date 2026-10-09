@@ -9,7 +9,7 @@ import java.net.URISyntaxException
  *
  * - Host allowlist: instagram.com, www.instagram.com, m.instagram.com
  * - Supported paths: /reel/<shortcode>, /reels/<shortcode>, /p/<shortcode>
- * - Canonical form: https://instagram.com/reel/<shortcode> (query params stripped)
+ * - Canonical form preserves kind: /reel/<shortcode> or /p/<shortcode> (query stripped)
  * - Instagram is the first SourceAdapter; this is intentionally the only one for v1.
  */
 object UrlCanonicalizer {
@@ -75,8 +75,10 @@ object UrlCanonicalizer {
             return Result.Err("INVALID_URL", "invalid shortcode: $shortcode")
         }
 
-        // Canonical form: https scheme, bare host, /reel/ path, NO query params.
-        val canonical = "https://instagram.com/reel/$shortcode"
+        // Preserve post-vs-reel so the backend can choose the correct source actor.
+        // /reels/ normalizes to /reel/; /p/ remains /p/.
+        val canonicalKind = if (parts[0].lowercase() == "p") "p" else "reel"
+        val canonical = "https://instagram.com/$canonicalKind/$shortcode"
         return Result.Ok(
             platform = "instagram",
             platformItemId = shortcode,

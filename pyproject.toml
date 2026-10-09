@@ -19,6 +19,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+local = [
+  "faster-whisper>=1.1",
+  "rapidocr-onnxruntime>=1.4",
+]
 # Visual search (local joint image/text embeddings, no API cost): the worker
 # and GET /v1/search import torch/open_clip lazily, so the base install keeps
 # working without these. Install with `pip install -e ".[visual]"` on the
