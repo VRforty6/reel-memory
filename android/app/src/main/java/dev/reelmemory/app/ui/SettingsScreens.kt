@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,8 +50,13 @@ import dev.reelmemory.app.auth.AuthState
 import dev.reelmemory.app.auth.QuotaBucket
 import dev.reelmemory.app.auth.SessionManager
 import dev.reelmemory.app.data.SettingsStore
+import dev.reelmemory.app.net.AppUpdateInfo
+import dev.reelmemory.app.net.UpdateApi
+import dev.reelmemory.app.net.UpdateCheckResult
+import dev.reelmemory.app.updates.AppUpdater
 import dev.reelmemory.app.sync.SyncWorker
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.Locale
 
 private sealed interface SettingsPage {
@@ -62,6 +68,7 @@ private sealed interface SettingsPage {
     data object Data : SettingsPage
     data object Appearance : SettingsPage
     data object Help : SettingsPage
+    data object AppUpdate : SettingsPage
     data object Developer : SettingsPage
 }
 
@@ -103,6 +110,7 @@ fun SettingsRoot(
                             SettingsPage.Data -> "Your data"
                             SettingsPage.Appearance -> "Appearance"
                             SettingsPage.Help -> "Help"
+                            SettingsPage.AppUpdate -> "App update"
                             SettingsPage.Developer -> "Developer settings"
                         }
                     )
@@ -160,6 +168,7 @@ fun SettingsRoot(
                 modifier = Modifier.padding(padding)
             )
             SettingsPage.Help -> HelpPage(Modifier.padding(padding))
+            SettingsPage.AppUpdate -> AppUpdatePage(store, Modifier.padding(padding))
             SettingsPage.Developer -> DeveloperPage(
                 store = store,
                 onSaved = { scope.launch { snackbar.showSnackbar("Developer settings saved") } },
@@ -234,6 +243,13 @@ private fun SettingsList(
                 title = "Help",
                 subtitle = "Sharing, importing, troubleshooting",
                 onClick = { onOpen(SettingsPage.Help) }
+            )
+        }
+        item {
+            SettingRow(
+                title = "App update",
+                subtitle = "Version ${appVersionName()} ? Check for updates",
+                onClick = { onOpen(SettingsPage.AppUpdate) }
             )
         }
         item { HorizontalDivider(Modifier.padding(horizontal = 16.dp)) }
@@ -527,6 +543,153 @@ private fun HelpPage(modifier: Modifier = Modifier) {
     }
 }
 
+@Composable
+private fun AppUpdatePage(store: SettingsStore, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val api = remember { UpdateApi(store) }
+    val currentName = appVersionName()
+    val currentCode = remember {
+        try {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else {
+                @Suppress("DEPRECATION")
+                info.versionCode.toLong()
+            }
+        } catch (_: Exception) { 1L }
+    }
+    var checking by remember { mutableStateOf(true) }
+    var working by remember { mutableStateOf(false) }
+    var info by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    suspend fun checkNow() {
+        checking = true
+        error = null
+        when (val result = api.check(currentCode)) {
+            is UpdateCheckResult.Ok -> info = result.info
+            is UpdateCheckResult.Unavailable -> {
+                info = null
+                error = result.message
+            }
+        }
+        checking = false
+    }
+
+    LaunchedEffect(Unit) { checkNow() }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize().padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                "Installed version $currentName",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        if (checking) {
+            item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            item { Text("Checking for updates?") }
+        } else if (error != null) {
+            item {
+                Text(
+                    error!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        } else {
+            val latest = info
+            if (latest != null && latest.updateAvailable) {
+                item {
+                    Text(
+                        "Version ${latest.latestVersionName} is available",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                latest.releaseNotes?.let { notes ->
+                    item {
+                        Text(
+                            notes,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                item {
+                    Text(
+                        String.format(Locale.US, "%.1f MB", latest.sizeBytes / 1_048_576.0),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                item {
+                    Button(
+                        enabled = !working,
+                        onClick = {
+                            if (!AppUpdater.canInstallPackages(context)) {
+                                message = "Allow Reel Memory to install app updates, then return and tap Download & install again."
+                                AppUpdater.openInstallPermission(context)
+                            } else {
+                                scope.launch {
+                                    working = true
+                                    error = null
+                                    message = "Downloading update?"
+                                    try {
+                                        val target = File(
+                                            context.cacheDir,
+                                            "updates/reel-memory-${latest.latestVersionCode}.apk"
+                                        )
+                                        api.download(latest, target)
+                                        message = "Download verified. Opening Android installer?"
+                                        AppUpdater.launchInstaller(context, target)
+                                    } catch (e: Exception) {
+                                        error = e.message ?: "Update failed"
+                                        message = null
+                                    } finally {
+                                        working = false
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (working) "Downloading?" else "Download & install")
+                    }
+                }
+            } else if (latest != null) {
+                item { Text("You're up to date.") }
+            }
+        }
+        message?.let { text ->
+            item {
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        item {
+            TextButton(
+                enabled = !checking && !working,
+                onClick = { scope.launch { checkNow() } }
+            ) { Text("Check again") }
+        }
+        item {
+            Text(
+                "Android always shows the system install confirmation. Reel Memory cannot silently replace itself.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Hidden developer settings
 // ---------------------------------------------------------------------------
@@ -541,7 +704,7 @@ private fun DeveloperPage(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val currentUrl by store.backendUrl.collectAsState(initial = SettingsStore.DEFAULT_BACKEND_URL)
+    val currentUrl by store.backendUrl.collectAsState(initial = store.defaultBackendUrl)
     var draftUrl by remember(currentUrl) { mutableStateOf(currentUrl) }
     val currentClientId by store.googleClientId.collectAsState(initial = null)
     var draftClientId by remember(currentClientId) { mutableStateOf(currentClientId ?: "") }
@@ -584,8 +747,8 @@ private fun DeveloperPage(
         }
         item {
             Text(
-                "On an emulator use http://10.0.2.2:8000. On a physical phone " +
-                    "on the same Wi-Fi, use your computer's LAN IP.",
+                "Emulators use http://10.0.2.2:8000. Physical phones use the secure " +
+                    "Tailscale backend by default; keep Tailscale connected on the phone and laptop.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -671,7 +834,7 @@ private fun DeveloperPage(
                 }
                 Spacer(Modifier.width(8.dp))
                 TextButton(onClick = {
-                    draftUrl = SettingsStore.DEFAULT_BACKEND_URL
+                    draftUrl = store.defaultBackendUrl
                     draftClientId = ""
                     draftProductId = SettingsStore.DEFAULT_PLAY_PRODUCT_ID
                     error = null

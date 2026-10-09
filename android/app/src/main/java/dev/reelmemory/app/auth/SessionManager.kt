@@ -193,7 +193,7 @@ class SessionManager(
         is AuthApi.AuthCallResult.NotConfigured ->
             SignInResult.Error(result.message.ifEmpty { "Google sign-in isn't set up on the server yet." })
         is AuthApi.AuthCallResult.Transient ->
-            SignInResult.Error(result.message.ifEmpty { "Couldn't reach the server." })
+            SignInResult.Error("Couldn't reach Reel Memory. Check your network or Tailscale connection and try again.")
     }
 
     /** Best-effort server revocation, then the local session is cleared regardless. */

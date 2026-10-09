@@ -45,6 +45,13 @@ class MemoryApi(
         data class QuotaExceeded(val info: QuotaExceededInfo) : ListResult()
     }
 
+    sealed class CategoryTreeResult {
+        data class Ok(val tree: CategoryTree) : CategoryTreeResult()
+        data class Transient(val message: String) : CategoryTreeResult()
+        data object Unauthenticated : CategoryTreeResult()
+        data class QuotaExceeded(val info: QuotaExceededInfo) : CategoryTreeResult()
+    }
+
     sealed class StatusResult {
         data class Ok(val status: MemoryStatus) : StatusResult()
         data class NotFound(val message: String) : StatusResult()
@@ -160,6 +167,31 @@ class MemoryApi(
                 401 -> ListResult.Unauthenticated
                 402 -> ListResult.QuotaExceeded(quotaOf(payload))
                 else -> ListResult.Transient("backend returned HTTP ${resp.code}")
+            }
+        }
+
+    suspend fun getCategoryTree(): CategoryTreeResult =
+        withContext(Dispatchers.IO) {
+            val base = baseUrl() ?: return@withContext CategoryTreeResult.Transient("cannot read backend URL")
+            val request = Request.Builder()
+                .url("$base/v1/categories/tree")
+                .get()
+                .header("Accept", "application/json")
+                .build()
+            val resp = try {
+                authed(request)
+            } catch (e: Exception) {
+                return@withContext CategoryTreeResult.Transient(e.message ?: e.javaClass.simpleName)
+            }
+            when (resp.code) {
+                200 -> {
+                    val tree = parseCategoryTree(resp.body)
+                    if (tree != null) CategoryTreeResult.Ok(tree)
+                    else CategoryTreeResult.Transient("could not parse category tree")
+                }
+                401 -> CategoryTreeResult.Unauthenticated
+                402 -> CategoryTreeResult.QuotaExceeded(quotaOf(resp.body))
+                else -> CategoryTreeResult.Transient("backend returned HTTP ${resp.code}")
             }
         }
 

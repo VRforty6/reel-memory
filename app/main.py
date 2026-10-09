@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import auth, billing, captures, me, memories, search
+from app.api import auth, billing, captures, categories, me, memories, search, updates
 from app.config import settings
 from app.db import SessionLocal, get_or_create_local_user, init_db
 
@@ -42,8 +42,10 @@ app.include_router(auth.router)
 app.include_router(me.router)
 app.include_router(billing.router)
 app.include_router(captures.router)
+app.include_router(categories.router)
 app.include_router(memories.router)
 app.include_router(search.router)
+app.include_router(updates.router)
 
 
 @app.get("/health")

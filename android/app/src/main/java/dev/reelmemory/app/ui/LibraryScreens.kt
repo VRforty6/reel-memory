@@ -42,7 +42,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.reelmemory.app.net.CategoryNode
+import dev.reelmemory.app.net.CategoryTree
 import dev.reelmemory.app.net.MemoryItem
+import dev.reelmemory.app.net.categoryBreadcrumb
+import dev.reelmemory.app.net.findCategoryNode
+import dev.reelmemory.app.net.isInCategoryBranch
 
 /**
  * Library: every saved memory as thumbnail-forward cards, filterable by
@@ -55,6 +60,8 @@ fun LibraryScreen(
     memories: List<MemoryItem>?,
     error: String?,
     loading: Boolean,
+    categoryTree: CategoryTree?,
+    categoryError: String?,
     onRefresh: () -> Unit,
     thumbnailLoader: ThumbnailLoader,
     onOpenMemory: (MemoryItem) -> Unit,
@@ -62,6 +69,7 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
 ) {
     var filter by remember { mutableStateOf(LibraryFilter.ALL) }
+    var selectedCategoryPath by remember { mutableStateOf<String?>(null) }
     var showHowSharingWorks by remember { mutableStateOf(false) }
 
     if (showHowSharingWorks) {
@@ -120,11 +128,42 @@ fun LibraryScreen(
             }
         }
         else -> {
-            val filtered = memories.filter { filter.matches(it.processingStatus, it.mediaKind) }
+            val categoryFiltered = selectedCategoryPath?.let { selected ->
+                memories.filter { it.isInCategoryBranch(selected) }
+            } ?: memories
+            val filtered = categoryFiltered.filter { filter.matches(it.processingStatus, it.mediaKind) }
+            val selectedNode = selectedCategoryPath?.let { path ->
+                categoryTree?.categories?.let { findCategoryNode(it, path) }
+            }
+            val visibleBranches = selectedNode?.children ?: categoryTree?.categories.orEmpty()
+            val breadcrumbs = selectedCategoryPath?.let { path ->
+                categoryTree?.categories?.let { categoryBreadcrumb(it, path) }
+            }.orEmpty()
             LazyColumn(
                 modifier = modifier.fillMaxSize().padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (categoryTree != null && categoryTree.categories.isNotEmpty()) {
+                    item {
+                        CategoryBrowser(
+                            branches = visibleBranches,
+                            breadcrumbs = breadcrumbs,
+                            selected = selectedNode,
+                            totalMemories = categoryTree.totalMemories,
+                            onSelect = { selectedCategoryPath = it.path },
+                            onSelectBreadcrumb = { selectedCategoryPath = it?.path },
+                        )
+                    }
+                } else if (categoryError != null) {
+                    item {
+                        Text(
+                            "Categories unavailable: $categoryError",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
                 item {
                     FlowRow(
                         modifier = Modifier.padding(vertical = 8.dp),
@@ -144,7 +183,10 @@ fun LibraryScreen(
                     item {
                         LibraryMessage(
                             title = "Nothing in this view yet",
-                            body = "Try a different filter — or save something new with the + button.",
+                            body = if (selectedCategoryPath != null)
+                                "Nothing in this category matches the current filter."
+                            else
+                                "Try a different filter — or save something new with the + button.",
                             actionLabel = null,
                             onAction = null,
                             modifier = Modifier.fillMaxWidth()
@@ -164,6 +206,81 @@ fun LibraryScreen(
         }
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryBrowser(
+    branches: List<CategoryNode>,
+    breadcrumbs: List<CategoryNode>,
+    selected: CategoryNode?,
+    totalMemories: Int,
+    onSelect: (CategoryNode) -> Unit,
+    onSelectBreadcrumb: (CategoryNode?) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                selected?.name ?: "Browse by category",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                if (selected == null) "$totalMemories categorized" else "${selected.totalCount} items",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (breadcrumbs.isNotEmpty()) {
+            FlowRow(
+                modifier = Modifier.padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                TextButton(onClick = { onSelectBreadcrumb(null) }) { Text("All") }
+                breadcrumbs.forEach { node ->
+                    Text(
+                        "›",
+                        modifier = Modifier.padding(top = 12.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = { onSelectBreadcrumb(node) }) {
+                        Text(node.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+
+        if (branches.isNotEmpty()) {
+            FlowRow(
+                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                branches.sortedWith(compareByDescending<CategoryNode> { it.totalCount }.thenBy { it.name })
+                    .forEach { node ->
+                        FilterChip(
+                            selected = false,
+                            onClick = { onSelect(node) },
+                            label = { Text("${node.name} · ${node.totalCount}") }
+                        )
+                    }
+            }
+        } else if (selected != null) {
+            Text(
+                "Leaf category",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+        }
+    }
+}
+
 
 @Composable
 private fun LibraryMessage(

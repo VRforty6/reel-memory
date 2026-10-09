@@ -11,20 +11,75 @@ import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore by preferencesDataStore(name = "reel_memory_settings")
 
-/**
- * App settings: currently just the backend base URL. Defaults to the Android
- * emulator loopback address (10.0.2.2) hitting the backend's default port.
- */
-class SettingsStore(private val context: Context) {
+/** App settings, including the single source of truth for backend selection. */
+class SettingsStore(
+    private val context: Context,
+    isEmulator: Boolean = AndroidDeviceEnvironment.isEmulator(),
+) {
+
+    private val emulator = isEmulator
 
     companion object {
         private val KEY_BACKEND_URL = stringPreferencesKey("backend_base_url")
+        private val KEY_TAILSCALE_DEFAULT_MIGRATED =
+            booleanPreferencesKey("backend_tailscale_default_migrated")
+        private val KEY_BACKEND_URL_USER_CONFIGURED =
+            booleanPreferencesKey("backend_url_user_configured")
         private val KEY_GOOGLE_CLIENT_ID = stringPreferencesKey("google_client_id")
         private val KEY_PLAY_PRODUCT_ID = stringPreferencesKey("play_product_id")
         private val KEY_DEBUG_DIAGNOSTICS = booleanPreferencesKey("debug_diagnostics")
 
-        /** Default: backend running on the dev machine, reached from an emulator. */
-        const val DEFAULT_BACKEND_URL = "http://10.0.2.2:8000"
+        const val EMULATOR_BACKEND_URL = "http://10.0.2.2:8000"
+        const val USB_DEBUG_BACKEND_URL = "http://127.0.0.1:8000"
+        const val PHYSICAL_DEVICE_BACKEND_URL = "https://vrforty6.tail434ddf.ts.net"
+
+        internal fun defaultBackendUrl(isEmulator: Boolean): String =
+            if (isEmulator) EMULATOR_BACKEND_URL else PHYSICAL_DEVICE_BACKEND_URL
+
+        internal fun resolveBackendUrl(
+            persistedUrl: String?,
+            isEmulator: Boolean,
+            legacyMigrationComplete: Boolean = false,
+            userConfigured: Boolean = false,
+        ): String =
+            if (
+                shouldRepairPhysicalDeviceUrl(
+                    persistedUrl = persistedUrl,
+                    isEmulator = isEmulator,
+                    userConfigured = userConfigured,
+                ) ||
+                shouldMigrateLegacyUrl(
+                    persistedUrl,
+                    isEmulator,
+                    legacyMigrationComplete,
+                    userConfigured,
+                )
+            ) {
+                PHYSICAL_DEVICE_BACKEND_URL
+            } else {
+                persistedUrl ?: defaultBackendUrl(isEmulator)
+            }
+
+        internal fun shouldRepairPhysicalDeviceUrl(
+            persistedUrl: String?,
+            isEmulator: Boolean,
+            userConfigured: Boolean = false,
+        ): Boolean {
+            if (userConfigured || isEmulator || persistedUrl.isNullOrBlank()) return false
+            val normalized = normalize(persistedUrl)
+            val host = runCatching { java.net.URI(normalized).host?.lowercase() }.getOrNull()
+            return host == "10.0.2.2" || host == "127.0.0.1" || host == "localhost"
+        }
+
+        internal fun shouldMigrateLegacyUrl(
+            persistedUrl: String?,
+            isEmulator: Boolean,
+            legacyMigrationComplete: Boolean = false,
+            userConfigured: Boolean = false,
+        ): Boolean = !userConfigured &&
+            !legacyMigrationComplete &&
+            !isEmulator &&
+            (persistedUrl == EMULATOR_BACKEND_URL || persistedUrl == USB_DEBUG_BACKEND_URL)
 
         /**
          * Google OAuth client ID for Sign-In (Google Cloud Console -> APIs &
@@ -41,10 +96,69 @@ class SettingsStore(private val context: Context) {
         }
     }
 
-    val backendUrl: Flow<String> = context.settingsDataStore.data
-        .map { prefs -> prefs[KEY_BACKEND_URL] ?: DEFAULT_BACKEND_URL }
+    val defaultBackendUrl: String = defaultBackendUrl(emulator)
 
-    suspend fun getBackendUrl(): String = backendUrl.first()
+    val backendUrl: Flow<String> = context.settingsDataStore.data
+        .map { prefs ->
+            resolveBackendUrl(
+                persistedUrl = prefs[KEY_BACKEND_URL],
+                isEmulator = emulator,
+                legacyMigrationComplete =
+                    prefs[KEY_TAILSCALE_DEFAULT_MIGRATED] ?: false,
+                userConfigured = prefs[KEY_BACKEND_URL_USER_CONFIGURED] ?: false,
+            )
+        }
+
+    suspend fun getBackendUrl(): String {
+        val initialPreferences = context.settingsDataStore.data.first()
+        val migrationComplete =
+            initialPreferences[KEY_TAILSCALE_DEFAULT_MIGRATED] ?: false
+        val userConfigured = initialPreferences[KEY_BACKEND_URL_USER_CONFIGURED] ?: false
+        val repairNeeded = shouldRepairPhysicalDeviceUrl(
+            persistedUrl = initialPreferences[KEY_BACKEND_URL],
+            isEmulator = emulator,
+            userConfigured = userConfigured,
+        )
+        if (emulator || (migrationComplete && !repairNeeded)) {
+            return resolveBackendUrl(
+                persistedUrl = initialPreferences[KEY_BACKEND_URL],
+                isEmulator = emulator,
+                legacyMigrationComplete = migrationComplete,
+                userConfigured = userConfigured,
+            )
+        }
+
+        // Complete the migration atomically so a concurrent custom URL is never overwritten.
+        // Also repair stale emulator/loopback defaults left behind by older physical-device builds,
+        // even when the one-time migration flag was already set by an earlier release.
+        val updatedPreferences = context.settingsDataStore.edit { prefs ->
+            val migrated = prefs[KEY_TAILSCALE_DEFAULT_MIGRATED] ?: false
+            val configured = prefs[KEY_BACKEND_URL_USER_CONFIGURED] ?: false
+            val persistedUrl = prefs[KEY_BACKEND_URL]
+            if (
+                shouldRepairPhysicalDeviceUrl(
+                    persistedUrl = persistedUrl,
+                    isEmulator = emulator,
+                    userConfigured = configured,
+                ) ||
+                (!migrated && shouldMigrateLegacyUrl(
+                    persistedUrl = persistedUrl,
+                    isEmulator = emulator,
+                    userConfigured = configured,
+                ))
+            ) {
+                prefs[KEY_BACKEND_URL] = PHYSICAL_DEVICE_BACKEND_URL
+            }
+            if (!migrated) prefs[KEY_TAILSCALE_DEFAULT_MIGRATED] = true
+        }
+        return resolveBackendUrl(
+            persistedUrl = updatedPreferences[KEY_BACKEND_URL],
+            isEmulator = emulator,
+            legacyMigrationComplete =
+                updatedPreferences[KEY_TAILSCALE_DEFAULT_MIGRATED] ?: false,
+            userConfigured = updatedPreferences[KEY_BACKEND_URL_USER_CONFIGURED] ?: false,
+        )
+    }
 
     suspend fun setBackendUrl(raw: String) {
         val normalized = normalize(raw)
@@ -53,6 +167,9 @@ class SettingsStore(private val context: Context) {
         }
         context.settingsDataStore.edit { prefs ->
             prefs[KEY_BACKEND_URL] = normalized
+            // Anything saved through Settings is an explicit user choice.
+            prefs[KEY_BACKEND_URL_USER_CONFIGURED] = true
+            prefs[KEY_TAILSCALE_DEFAULT_MIGRATED] = true
         }
     }
 

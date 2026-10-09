@@ -53,11 +53,43 @@ class AlbumCaptureResponse(BaseModel):
 # --- Memories ---
 
 
+class CategoryAssignmentOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    path: str
+    is_primary: bool
+    confidence: float | None = None
+    source: str
+
+
+class CategoryTreeNode(BaseModel):
+    id: uuid.UUID
+    name: str
+    slug: str
+    path: str
+    depth: int
+    direct_count: int
+    total_count: int
+    children: list["CategoryTreeNode"] = Field(default_factory=list)
+
+
+class CategoryTreeResponse(BaseModel):
+    categories: list[CategoryTreeNode]
+    total_memories: int
+
+
+class CategoryReclassifyResponse(BaseModel):
+    classified: int
+    counts: dict[str, int]
+
+
 class MemorySummary(BaseModel):
     id: uuid.UUID
     title: str | None
     summary: str | None
     category: str | None
+    category_path: str | None = None
+    category_assignments: list[CategoryAssignmentOut] = Field(default_factory=list)
     platform: str
     media_kind: str | None = None
     processing_status: str
@@ -98,6 +130,8 @@ class MemoryDetail(BaseModel):
     title: str | None
     summary: str | None
     category: str | None
+    category_path: str | None = None
+    category_assignments: list[CategoryAssignmentOut] = Field(default_factory=list)
     language: str | None
     processing_status: str
     processing_version: str | None

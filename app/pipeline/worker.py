@@ -69,6 +69,7 @@ from app.sources.base import (
     Unsupported,
 )
 from app.sources.registry import get_adapter
+from app.taxonomy import categorize_memory
 
 log = logging.getLogger("reel-memory.worker")
 
@@ -938,6 +939,11 @@ class Worker:
             db.add(MemoryTag(memory_id=memory.id, tag=tag[:128], confidence=None))
         db.commit()
 
+        # Flat categories were too broad and brittle. Classify from all
+        # persisted evidence into the per-user hierarchy; this also rewrites
+        # memory.category to the specific primary leaf for legacy clients.
+        categorize_memory(db, memory, item)
+
         self._index_segments(db, memory, job)
 
         self._transition(db, memory, job, ProcessingStatus.READY)
@@ -1003,6 +1009,7 @@ class Worker:
         memory.processing_version = settings.processing_version
         db.commit()
         self._persist_segments(db, memory, "article", [(None, None, text)])
+        categorize_memory(db, memory, item)
         self._index_segments(db, memory, job)
         self._transition(db, memory, job, ProcessingStatus.READY)
 

@@ -144,6 +144,19 @@ def test_migration_007_adds_expression_index_used_by_search():
     assert "to_tsvector('english', content)" in sql
 
 
+def test_migration_008_adds_hierarchical_taxonomy():
+    path = (
+        Path(__file__).resolve().parent.parent
+        / "migrations"
+        / "008_category_taxonomy.sql"
+    )
+    sql = path.read_text()
+    assert "CREATE TABLE IF NOT EXISTS categories" in sql
+    assert "parent_id uuid REFERENCES categories(id)" in sql
+    assert "CREATE TABLE IF NOT EXISTS memory_categories" in sql
+    assert "uq_memory_categories_one_primary" in sql
+
+
 # -- has_thumbnail schema field (ITEM 4a) -------------------------------------
 
 

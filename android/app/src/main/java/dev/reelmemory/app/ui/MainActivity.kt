@@ -67,6 +67,7 @@ import dev.reelmemory.app.data.ShareDatabase
 import dev.reelmemory.app.data.VideoUpload
 import dev.reelmemory.app.data.WebCapture
 import dev.reelmemory.app.net.CaptureApi
+import dev.reelmemory.app.net.CategoryTree
 import dev.reelmemory.app.net.MemoryApi
 import dev.reelmemory.app.net.MemoryItem
 import dev.reelmemory.app.net.SearchApi
@@ -261,6 +262,8 @@ private fun MainTabs(
     var backendMemories by remember { mutableStateOf<List<MemoryItem>?>(null) }
     var memoriesError by remember { mutableStateOf<String?>(null) }
     var memoriesLoading by remember { mutableStateOf(false) }
+    var categoryTree by remember { mutableStateOf<CategoryTree?>(null) }
+    var categoryError by remember { mutableStateOf<String?>(null) }
 
     fun loadMemories() {
         scope.launch {
@@ -283,10 +286,27 @@ private fun MainTabs(
         }
     }
 
+    fun loadCategories() {
+        scope.launch {
+            categoryError = null
+            when (val r = memoryApi.getCategoryTree()) {
+                is MemoryApi.CategoryTreeResult.Ok -> categoryTree = r.tree
+                is MemoryApi.CategoryTreeResult.Unauthenticated ->
+                    categoryError = "Signed out — sign in to browse categories."
+                is MemoryApi.CategoryTreeResult.QuotaExceeded ->
+                    categoryError = "Free quota exhausted — upgrade to Pro to browse categories."
+                is MemoryApi.CategoryTreeResult.Transient -> categoryError = r.message
+            }
+        }
+    }
+
     // Load the backend list the first time a list-backed tab is shown.
     LaunchedEffect(tab) {
         if ((tab == Tab.INBOX || tab == Tab.LIBRARY) && backendMemories == null && !memoriesLoading) {
             loadMemories()
+        }
+        if (tab == Tab.LIBRARY && categoryTree == null) {
+            loadCategories()
         }
     }
 
@@ -357,6 +377,7 @@ private fun MainTabs(
                     IconButton(onClick = {
                         StatusCheckWorker.enqueue(context)
                         loadMemories()
+                        if (tab == Tab.LIBRARY) loadCategories()
                         scope.launch { snackbar.showSnackbar("Refreshing status") }
                     }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh status")
@@ -451,7 +472,9 @@ private fun MainTabs(
                     memories = backendMemories,
                     error = memoriesError,
                     loading = memoriesLoading,
-                    onRefresh = { loadMemories() },
+                    categoryTree = categoryTree,
+                    categoryError = categoryError,
+                    onRefresh = { loadMemories(); loadCategories() },
                     thumbnailLoader = thumbnailLoader,
                     onOpenMemory = { openMemoryItem(it) },
                     onAddFirst = { showAddSheet = true }

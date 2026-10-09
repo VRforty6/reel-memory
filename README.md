@@ -24,6 +24,10 @@ and hybrid search. See the PRD for the full product spec.
 - **Hybrid search** — PostgreSQL FTS + pgvector cosine similarity merged with
   reciprocal-rank fusion; every result carries evidence (VISUAL/SPEECH/OCR/
   CAPTION/TAG).
+- **Hierarchical categories** — each user gets a tree rather than a flat label:
+  one evidence-backed primary path (for example `Technology & AI → Artificial
+  Intelligence → AI Coding & Agents → Claude Code`) plus optional secondary
+  branches. Existing clients still receive the specific leaf in `category`.
 
 ## Quickstart
 
@@ -46,6 +50,8 @@ psql postgresql://reel_memory:changeme@localhost:5432/reel_memory \
 # 007 uses CREATE INDEX CONCURRENTLY; do not wrap it in a transaction.
 psql postgresql://reel_memory:changeme@localhost:5432/reel_memory \
   -f migrations/007_search_fts_index.sql
+psql postgresql://reel_memory:changeme@localhost:5432/reel_memory \
+  -f migrations/008_category_taxonomy.sql
 
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
@@ -98,6 +104,11 @@ curl -X POST localhost:8000/v1/captures "${AUTH[@]}" \
 
 # Check processing state (polling is fine for MVP)
 curl "${AUTH[@]}" localhost:8000/v1/memories/<memory_id>/status
+
+# Browse the per-user category tree; filter a whole branch by its stable path
+curl "${AUTH[@]}" localhost:8000/v1/categories/tree
+curl "${AUTH[@]}" \
+  'localhost:8000/v1/memories?category_path=technology-ai/artificial-intelligence'
 
 # Search by vague memory
 curl "${AUTH[@]}" 'localhost:8000/v1/search?q=red%20motorcycle%20number%2046'
@@ -580,6 +591,23 @@ The worker logs every stage transition with its duration
 `processing_jobs` rows to derive per-stage cost once providers are priced.
 A future migration will add a `processing_costs(memory_id, stage, cost_usd)`
 table; the hook points are already in `Worker._transition`.
+
+## Android self-update (self-hosted/dev builds)
+
+Settings now includes **App update**. `GET /v1/app/update` advertises the
+configured APK version, size and SHA-256; `GET /v1/app/update/apk` streams that
+APK. The Android client downloads into app-private cache, verifies byte count
+and SHA-256, then hands the file to Android's package installer through a
+`FileProvider`. Android still requires the normal user confirmation and, on
+Android 8+, the one-time **Allow from this source** permission. Existing
+installs can only be replaced by an APK signed with the same certificate.
+
+Configure `UPDATE_APK_PATH`, `UPDATE_VERSION_CODE`, `UPDATE_VERSION_NAME`, and
+optionally `UPDATE_RELEASE_NOTES` on the backend. Always increase Android
+`versionCode` for a new update. The first build that introduces this updater
+must still be installed manually once; subsequent builds can update from the
+app. For Google Play distribution, prefer Play's update path instead of this
+self-hosted installer permission.
 
 ## Security notes (PRD §41)
 

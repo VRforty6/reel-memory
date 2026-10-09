@@ -82,12 +82,15 @@ interface ShareDao {
     /** After an upgrade (or a manual retry), un-park quota-blocked rows. */
     @Query("UPDATE queued_shares SET status = 'PENDING', lastError = NULL WHERE status = 'QUOTA'")
     suspend fun requeueQuotaBlocked(): Int
+
+    @Query("DELETE FROM queued_shares WHERE remoteMemoryId = :memoryId")
+    suspend fun deleteByRemoteMemoryId(memoryId: String): Int
 }
 
 @Database(
     entities = [QueuedShare::class, VideoUpload::class, WebCapture::class, BriefDecision::class,
-        AlbumUpload::class, AlbumFile::class],
-    version = 4,
+        AlbumUpload::class, AlbumFile::class, RecentSearch::class],
+    version = 6,
     exportSchema = false
 )
 abstract class ShareDatabase : RoomDatabase() {
@@ -96,6 +99,7 @@ abstract class ShareDatabase : RoomDatabase() {
     abstract fun webCaptureDao(): WebCaptureDao
     abstract fun briefDecisionDao(): BriefDecisionDao
     abstract fun albumUploadDao(): AlbumUploadDao
+    abstract fun searchHistoryDao(): SearchHistoryDao
 
     companion object {
         @Volatile
@@ -178,13 +182,45 @@ abstract class ShareDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (table in listOf("video_uploads", "album_uploads")) {
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `contentHash` TEXT")
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `remoteSourceId` TEXT")
+                    db.execSQL("ALTER TABLE `$table` ADD COLUMN `remoteJobId` TEXT")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_${table}_contentHash` " +
+                            "ON `$table` (`contentHash`)"
+                    )
+                }
+            }
+        }
+
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `recent_searches` (" +
+                        "`normalizedQuery` TEXT NOT NULL PRIMARY KEY, " +
+                        "`query` TEXT NOT NULL, " +
+                        "`searchedAt` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_recent_searches_searchedAt` " +
+                        "ON `recent_searches` (`searchedAt`)"
+                )
+            }
+        }
+
         fun get(context: Context): ShareDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     ShareDatabase::class.java,
                     "reel-memory.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
+                ).addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+                    MIGRATION_5_6
+                ).build().also { instance = it }
             }
     }
 }

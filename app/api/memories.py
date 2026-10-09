@@ -24,7 +24,7 @@ from app.entitlements import (
     BUCKET_VERIFICATIONS,
     check_and_increment_quota,
 )
-from app.models import Memory, ProcessingJob, SourceItem, User
+from app.models import Category, Memory, MemoryCategory, ProcessingJob, SourceItem, User
 from app.pipeline.providers import (
     ProviderError,
     ProviderNotConfiguredError,
@@ -54,6 +54,7 @@ from app.intel import (
 from app.schemas import (
     ActionEvidence as ActionEvidenceSchema,
     ActionItem as ActionItemSchema,
+    CategoryAssignmentOut,
     ActionsResponse,
     AskCitation,
     AskRequest,
@@ -98,12 +99,35 @@ def _get_memory(db: Session, user_id: uuid.UUID, memory_id: uuid.UUID) -> Memory
     return memory
 
 
+def _category_outputs(memory: Memory) -> tuple[str | None, list[CategoryAssignmentOut]]:
+    assignments = sorted(
+        getattr(memory, "category_assignments", []),
+        key=lambda a: (not a.is_primary, a.category.path),
+    )
+    outputs = [
+        CategoryAssignmentOut(
+            id=a.category.id,
+            name=a.category.name,
+            path=a.category.path,
+            is_primary=a.is_primary,
+            confidence=a.confidence,
+            source=a.source,
+        )
+        for a in assignments
+    ]
+    primary = next((a for a in assignments if a.is_primary), None)
+    return (primary.category.path if primary else None), outputs
+
+
 def _summary(memory: Memory) -> MemorySummary:
+    category_path, category_assignments = _category_outputs(memory)
     return MemorySummary(
         id=memory.id,
         title=memory.title,
         summary=memory.summary,
         category=memory.category,
+        category_path=category_path,
+        category_assignments=category_assignments,
         platform=memory.source_item.platform,
         media_kind=memory.media_kind,
         processing_status=memory.processing_status,
@@ -116,15 +140,32 @@ def _summary(memory: Memory) -> MemorySummary:
 def list_memories(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    category_path: str | None = Query(None, max_length=800),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> MemoryListResponse:
-    memories = (
+    query = (
         db.query(Memory)
-        .options(selectinload(Memory.source_item))
+        .options(
+            selectinload(Memory.source_item),
+            selectinload(Memory.category_assignments).selectinload(MemoryCategory.category),
+        )
         .join(SourceItem, SourceItem.id == Memory.source_item_id)
         .filter(SourceItem.user_id == user.id)
-        .order_by(Memory.created_at.desc())
+    )
+    if category_path:
+        normalized = category_path.strip().strip("/")
+        query = (
+            query.join(MemoryCategory, MemoryCategory.memory_id == Memory.id)
+            .join(Category, Category.id == MemoryCategory.category_id)
+            .filter(
+                MemoryCategory.is_primary.is_(True),
+                (Category.path == normalized)
+                | Category.path.startswith(normalized + "/", autoescape=True),
+            )
+        )
+    memories = (
+        query.order_by(Memory.created_at.desc())
         .offset(offset)
         .limit(limit)
         .all()
@@ -142,11 +183,14 @@ def get_memory(
 ) -> MemoryDetail:
     memory = _get_memory(db, user.id, memory_id)
     item = memory.source_item
+    category_path, category_assignments = _category_outputs(memory)
     return MemoryDetail(
         id=memory.id,
         title=memory.title,
         summary=memory.summary,
         category=memory.category,
+        category_path=category_path,
+        category_assignments=category_assignments,
         language=memory.language,
         processing_status=memory.processing_status,
         processing_version=memory.processing_version,

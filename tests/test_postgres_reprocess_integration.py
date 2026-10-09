@@ -18,7 +18,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.memories import reprocess_memory
 from app.config import settings
-from app.models import Base, Memory, MemorySegment, ProcessingJob, SourceItem, User
+from app.models import Base, Category, Memory, MemoryCategory, MemorySegment, ProcessingJob, SourceItem, User
 from app.pipeline.providers import (
     DeterministicMemoryGenerator,
     HashingEmbeddingProvider,
@@ -237,6 +237,15 @@ def test_postgres_reprocess_replaces_evidence_and_preserves_fts(
         assert target.processing_status == ProcessingStatus.READY.value
         run1_counts = _modality_counts(db, target_id)
         assert run1_counts == {"caption": 1, "ocr": 2, "speech": 2, "summary": 1}
+        run1_categories = (
+            db.query(MemoryCategory, Category)
+            .join(Category, Category.id == MemoryCategory.category_id)
+            .filter(MemoryCategory.memory_id == target_id)
+            .all()
+        )
+        assert len(run1_categories) == 1
+        assert run1_categories[0][0].is_primary is True
+        run1_category_path = run1_categories[0][1].path
 
         # Queue the same memory through the real endpoint policy.
         response = reprocess_memory(target_id, db=db, user=db.get(User, user_id))
@@ -269,6 +278,15 @@ def test_postgres_reprocess_replaces_evidence_and_preserves_fts(
         assert run2_counts == run1_counts
         assert run2_counts == {"caption": 1, "ocr": 2, "speech": 2, "summary": 1}
         assert sum(run2_counts.values()) == 6
+        run2_categories = (
+            db.query(MemoryCategory, Category)
+            .join(Category, Category.id == MemoryCategory.category_id)
+            .filter(MemoryCategory.memory_id == target_id)
+            .all()
+        )
+        assert len(run2_categories) == 1
+        assert run2_categories[0][0].is_primary is True
+        assert run2_categories[0][1].path == run1_category_path
 
         duplicate_rows = (
             db.query(

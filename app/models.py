@@ -63,6 +63,9 @@ class User(Base):
     usage_counters: Mapped[list["UsageCounter"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    categories: Mapped[list["Category"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class SourceItem(Base):
@@ -163,6 +166,9 @@ class Memory(Base):
     tags: Mapped[list["MemoryTag"]] = relationship(
         back_populates="memory", cascade="all, delete-orphan"
     )
+    category_assignments: Mapped[list["MemoryCategory"]] = relationship(
+        back_populates="memory", cascade="all, delete-orphan"
+    )
     jobs: Mapped[list["ProcessingJob"]] = relationship(
         back_populates="memory", cascade="all, delete-orphan"
     )
@@ -239,6 +245,76 @@ class MemoryTag(Base):
     confidence: Mapped[Optional[float]] = mapped_column(Float)
 
     memory: Mapped[Memory] = relationship(back_populates="tags")
+
+
+class Category(Base):
+    """One node in a per-user hierarchical category tree.
+
+    ``path`` is a stable slash-separated slug path (for example
+    ``technology-ai/artificial-intelligence/ai-coding-agents/claude-code``).
+    It is unique per user and makes tree reads/filtering cheap while parent_id
+    retains the actual hierarchy.
+    """
+
+    __tablename__ = "categories"
+    __table_args__ = (
+        UniqueConstraint("user_id", "path", name="uq_categories_user_path"),
+        CheckConstraint("depth >= 0", name="ck_categories_depth_nonnegative"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    slug: Mapped[str] = mapped_column(String(128), nullable=False)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    depth: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    user: Mapped[User] = relationship(back_populates="categories")
+    assignments: Mapped[list["MemoryCategory"]] = relationship(
+        back_populates="category", cascade="all, delete-orphan"
+    )
+
+
+class MemoryCategory(Base):
+    """Assignment of a memory to a taxonomy leaf.
+
+    A memory has one primary path and may have secondary cross-branch paths.
+    ``source`` is rules-v1/model/manual so future user corrections can be
+    protected from automatic reclassification.
+    """
+
+    __tablename__ = "memory_categories"
+    __table_args__ = (
+        PrimaryKeyConstraint("memory_id", "category_id", name="pk_memory_categories"),
+    )
+
+    memory_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("memories.id", ondelete="CASCADE"), nullable=False
+    )
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("categories.id", ondelete="CASCADE"), nullable=False
+    )
+    is_primary: Mapped[bool] = mapped_column(nullable=False, default=False)
+    confidence: Mapped[Optional[float]] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="rules-v1")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    memory: Mapped[Memory] = relationship(back_populates="category_assignments")
+    category: Mapped[Category] = relationship(back_populates="assignments")
 
 
 class ProcessingJob(Base):

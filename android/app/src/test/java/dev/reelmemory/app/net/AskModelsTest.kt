@@ -95,7 +95,8 @@ class AskModelsTest {
     fun parseMemoryListResponse_basic() {
         val json = """
             {"memories":[
-              {"id":"m1","title":"Carbonara","summary":"pasta","category":"cooking",
+              {"id":"m1","title":"Carbonara","summary":"pasta","category":"Recipes & Cooking",
+               "category_path":"food-drink/cooking/recipes-cooking",
                "processing_status":"READY","created_at":"2026-09-22T01:00:00Z"},
               {"id":"m2","title":null,"summary":null,"category":null,
                "processing_status":"PROCESSING","created_at":null}
@@ -105,6 +106,7 @@ class AskModelsTest {
         assertEquals(2, list.size)
         assertEquals("m1", list[0].id)
         assertEquals("Carbonara", list[0].displayTitle)
+        assertEquals("food-drink/cooking/recipes-cooking", list[0].categoryPath)
         assertTrue(list[0].isReady)
         assertEquals("Untitled reel", list[1].displayTitle)
         assertTrue(!list[1].isReady)

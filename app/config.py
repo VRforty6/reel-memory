@@ -157,6 +157,15 @@ class Settings(BaseSettings):
     # Unset -> /v1/billing/verify returns 503 billing_not_configured.
     google_play_service_account_json: str | None = None
 
+    # --- Android self-update (development / self-hosted distribution) ---------
+    # The APK stays server-side. Android checks metadata, downloads the APK,
+    # verifies its sha256, then hands it to the OS package installer. Existing
+    # installs can only be replaced by an APK signed with the same certificate.
+    update_apk_path: str | None = None
+    update_version_code: int = 0
+    update_version_name: str = ""
+    update_release_notes: str = ""
+
     def resolve_upload_dir(self) -> str:
         """Upload storage dir; defaults under temp_dir, never served over HTTP."""
         import os
